@@ -1,15 +1,16 @@
-1. Environment Details
-	a. Operating System
-		Windows 7
-	b. Programming Language
-		Python 3.5
+1. Original Environment Details
+
+	a. Operating System -	Windows 7
+	b. Script Language - 	Python 3.5
 
 2. Library Files
+
 	a. myglobal.py - Global variables for customizing script environment
 	b. misc.py - Functions that are universally applicable to any script
 	c. danbooru.py - Functions specifically to help communicate with Danbooru
 
 3. Application Files
+
 	a. userreport.py -	Collects data for the preceding month for various categories
 				End product is a CSV file.
 		USAGE: 
@@ -29,18 +30,21 @@
 	b. dtexttable.py (coming) - Create a Danbooru DText table from the data collected by userreport.py
 
 4. Other Files
+
 	a. tagdict.txt: Contains 60K+ tag entries; Will drastically reduce the amount of tag
 			misses as compared to starting a brand new tag dictionary.
 
 5. Setup
+
 	a. Adjust settings in myglobal.py
-		username: Your Danbooru username
-		apikey: Your Danbooru apikey; found on Danbooru user profile under API Key.
-		workingdirectory: Base directory where the scripts can write files.
-		datafilepath: Directory in workingdirectory where the data gets saved periodically in a text file.
-		csvfilepath: Directory in workingdirectory where the CSV file gets saved.
-		dtextfilepath: Directory in workingdirectory where the text file with the DText table get saved.
-		imagefilepath: Directory in workingdirectory where images from Danbooru will be downloaded to.
+	
+		username: 		Your Danbooru username
+		apikey: 		Your Danbooru apikey; found on Danbooru user profile under API Key.
+		workingdirectory: 	Base directory where the scripts can write files.
+		datafilepath: 		Directory in workingdirectory where the data gets saved periodically in a text file.
+		csvfilepath: 		Directory in workingdirectory where the CSV file gets saved.
+		dtextfilepath: 		Directory in workingdirectory where the text file with the DText table get saved.
+		imagefilepath: 		Directory in workingdirectory where images from Danbooru will be downloaded to.
 	
 	b. Move the tagdict.txt into the "workingdirectory"
 
