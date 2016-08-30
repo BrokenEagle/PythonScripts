@@ -41,10 +41,13 @@
 		username: 		Your Danbooru username
 		apikey: 		Your Danbooru apikey; found on Danbooru user profile under API Key.
 		workingdirectory: 	Base directory where the scripts can write files.
-		datafilepath: 		Directory in workingdirectory where the data gets saved periodically in a text file.
+		datafilepath: 		Directory in workingdirectory where the data gets saved periodically
+					in a text file.
 		csvfilepath: 		Directory in workingdirectory where the CSV file gets saved.
-		dtextfilepath: 		Directory in workingdirectory where the text file with the DText table get saved.
-		imagefilepath: 		Directory in workingdirectory where images from Danbooru will be downloaded to.
+		dtextfilepath: 		Directory in workingdirectory where the text file with the DText 
+					table get saved.
+		imagefilepath: 		Directory in workingdirectory where images from Danbooru will be 
+					downloaded to.
 	
 	b. Move the tagdict.txt into the "workingdirectory"
 
