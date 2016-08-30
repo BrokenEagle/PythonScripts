@@ -11,26 +11,26 @@
 
 3. Application Files
 	a. userreport.py -	Collects data for the preceding month for various categories
-						End product is a CSV file.
+				End product is a CSV file.
 		USAGE: 
-			userreport.py categoryname [new]
+		userreport.py categoryname [new]
 			
-			Options:
-				categoryname:	post,upload,note,artist_commentary,pool,artist,wiki_page,
-								forum_topic,forum_post,tag_implication,tag_alias,
-								bulk_update_request,post_appeal,comment
+		Options:
+		categoryname:	post,upload,note,artist_commentary,pool,artist,wiki_page,
+				forum_topic,forum_post,tag_implication,tag_alias,
+				bulk_update_request,post_appeal,comment
 			
-				new (optional): Creates a new report, overwriting any existing report.
+		new (optional): Creates a new report, overwriting any existing report.
 								
-								Data collection can be stopped partway through and resumed in
-								the same location by excluding this input.  Useful in case an
-								exception gets thrown at any point in the process.
+				Data collection can be stopped partway through and resumed in
+				the same location by excluding this input.  Useful in case an
+				exception gets thrown at any point in the process.
 	
 	b. dtexttable.py (coming) - Create a Danbooru DText table from the data collected by userreport.py
 
 4. Other Files
 	a. tagdict.txt: Contains 60K+ tag entries; Will drastically reduce the amount of tag
-		misses as compared to starting a brand new tag dictionary.
+			misses as compared to starting a brand new tag dictionary.
 
 5. Setup
 	a. Adjust settings in myglobal.py
