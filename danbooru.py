@@ -1,17 +1,25 @@
 #DANBOORU.PY
-"""Functions that help communicate with Danbooru go here"""
+
+#Include functions related to Danbooru here
 
 #PYTHON IMPORTS
+import os
+import re
 import sys
 import time
+from datetime import datetime
+import argparse
 import urllib.request
 import urllib.parse
 
-#LOCAL IMPORTS
+#MY IMPORTS
 import misc
 from myglobal import username,apikey,workingdirectory,imagefilepath
 
-#MODULE GLOBAL VARIABLES
+#LOCAL GLOBALS
+
+dateregex = '^[0-9]{4,4}-[0-9]{2,2}-[0-9]{2,2}$'
+idregex = '(\\d+)\.\.(\\d+)'
 
 #The following are needed to properly evaluate the JSON responses from Danbooru
 null = None
@@ -25,6 +33,12 @@ danbooru_auth = '?login=%s&api_key=%s'
 #For building Danbooru URL's and methods on the fly based on the operation type
 #Only list, create, show, update, delete and count have been tested
 danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('%d/undelete.json','POST'),'create_or_update':('create_or_update.json','POST'),'count':('counts/posts.json','GET')}
+
+#CLASSES
+
+class DanbooruError(Exception):
+    """Base class for exceptions in this module. (Currently unused)"""
+    pass
 
 #EXTERNAL FUNCTIONS
 
@@ -101,6 +115,35 @@ def GetServFilePath(postdict):
 	"""
 	return danbooru_domain + postdict["large_file_url"]
 
+def DownloadFile(postdict):
+	"""Download a file from the Internet"""
+	
+	localfilepath = GetCurrFilePath(postdict)
+	serverfilepath = GetServFilePath(postdict)
+	
+	#Create the directory for the local file if it doesn't already exist
+	misc.CreateDirectory(localfilepath)
+	
+	#Does the file already exist with a size > 0
+	if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
+		while True:
+			with open(localfilepath,'wb') as outfile:
+				while True:
+					try:
+						response = urllib.request.urlopen(serverfilepath)
+						if response.status == 200:
+							break
+					except:
+						pass
+					if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
+						return -1
+				if not (outfile.write(response.read())):
+					if not AbortRetryFail(localfilepath,outfile):
+						return -1
+				else:
+					return 0
+
+
 #EXTERNAL HELPER FUNCTIONS
 
 def JoinArgs(*args):
@@ -119,6 +162,12 @@ def GetArgUrl(typename,keyname,data):
 	else:
 		return urllib.parse.urlencode(eval("{'%s[%s]':%s}" % (typename,keyname,repr(data))))
 
+def GetArgUrl2(typename,data):
+	return GetArgUrl(typename,'',data)
+
+def GetArgUrl3(typename,keyname,data):
+	return GetArgUrl(typename,keyname,data)
+
 def GetPageUrl(id):
 	"""Get the page argument for all ID's below the parameter 'id'"""
 	return GetArgUrl('page','','b'+str(id))
@@ -128,9 +177,26 @@ def EncodeData(typename,keyname,data):
 	return (GetArgUrl(typename,keyname,data)).encode('ascii')
 
 def ProcessTimestamp(timestring):
-	return time.mktime(time.strptime(timestring[:19],"%Y-%m-%dT%H:%M:%S"))
+	datetuple = datetime.strptime(timestring,"%Y-%m-%dT%H:%M:%S.%fZ")
+	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000)
 
-#INTERNAL FUNCTIONS
+def DateStringInput(string):
+	match = re.match(dateregex,string)
+	if match == None:
+		raise argparse.ArgumentTypeError("Date input must be of format 'YYYY-MM-DD'")
+	return match.group()
+
+def IDStringInput(string):
+	match = re.match(idregex,string)
+	if match == None:
+		raise argparse.ArgumentTypeError("ID input must be of format 'Start#..End#'")
+	start = int(match.group(1))
+	end = int(match.group(2))
+	if start > end:
+		raise argparse.ArgumentTypeError("Start ID must be less than End ID")
+	return match.group()
+
+#INTERNAL HELPER FUNCTIONS
 
 def GetDanbooruUrl(opname,typename):
 	"""Build Danbooru URL on the fly"""

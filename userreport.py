@@ -5,6 +5,7 @@
 import os
 import csv
 import sys
+import argparse
 
 #LOCAL IMPORTS
 from misc import PutGetData,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
@@ -21,7 +22,7 @@ tagdictfile = workingdirectory + "tagdict.txt"
 versionedtypes = ['post','upload','pool','note','artist_commentary','artist','wiki_page']
 nonversionedtypes = ['comment','forum_post','forum_topic','post_appeal','bulk_update_request','tag_implication','tag_alias']
 validtypes = versionedtypes + nonversionedtypes
-typeextracolumns = {'post':7,'upload':13,'pool':5,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
+typeextracolumns = {'post':14,'upload':13,'pool':5,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
 typelimits = {'post':400,'upload':200,'pool':50,'note':200,'artist_commentary':200,'artist':50,'wiki_page':50,'comment':200,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
 
 disregardtags = ['tagme','commentary','check_commentary','translated','partially_translated',\
@@ -30,28 +31,27 @@ tagtypedict = {'general':0,'character':4,'copyright':3,'artist':1}
 
 #MAIN function
 
-def main(argv,argc):
+def main(args):
 	"""Main function; 
-	argv[1] = typename, 
-	argv[2] = 'new' for new requests, nonexistant for existing requests
+	args: Instance of argparse.Namespace
 	"""
 	global userdictfile,csvfile
 	
 	#TurnDebugOn()	#uncomment this line to see debugging in this module
 	#TurnDebugOn('danbooru')	#uncomment this line to see debugging in danbooru module
 	
-	if(argv[1]) not in validtypes:
+	if(args.category) not in validtypes:
 		print("Invalid category")
 		return -1
 	
 	#Set variables according to the current category
-	typename = argv[1]
+	typename = args.category
 	typelimit = typelimits[typename]
 	userdictfile = userdictfile % typename
 	csvfile = csvfile % typename
 	
 	#Check to see if we are starting new, or are resuming progress
-	if os.path.exists(userdictfile) and not (argc > 2 and argv[2] == 'new'):
+	if os.path.exists(userdictfile) and not (args.new):
 		startid,beginningid,starttime,userdict = PutGetData(userdictfile,'r')
 		
 		#Prepare for the first API call to Danbooru
@@ -70,13 +70,15 @@ def main(argv,argc):
 		else:
 			urladd=JoinArgs(GetArgUrl('limit','',typelimit))
 	
-	#'upload' uses a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
-	if typename == 'upload':
+	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
+	if typename == 'post' or typename == 'upload':
 		if os.path.exists(tagdictfile):
 			tagdict = PutGetData(tagdictfile,'r')
 		else:
 			tagdict = {}
-		
+	
+	#For uploads, update tag dictionary with recent aliases to remove false tag errors
+	if typename == 'upload':
 		#Check for new aliases and update tag dictionary
 		updatetagdictwaliases(starttime,tagdict)
 		PutGetData(tagdictfile,'w',tagdict)
@@ -120,6 +122,10 @@ def main(argv,argc):
 				else:
 					userid = typelist[i]['creator_id']
 			
+			#For post changes, skip all post changes that are uploads
+			if typename == 'post' and (isupload(typelist[i])):
+				continue
+			
 			#For uploads, skip all post changes that aren't uploads
 			if typename == 'upload' and not (isupload(typelist[i])):
 				continue
@@ -136,7 +142,7 @@ def main(argv,argc):
 			
 			#Go to each types's handler function to process more data
 			if typename=='post':
-				updatepostdata(userid,userdict,typelist[i])
+				updatepostdata(userid,userdict,typelist[i],tagdict)
 			elif typename=='upload':
 				updateuploaddata(userid,userdict,typelist[i],tagdict)
 			elif typename=='comment':
@@ -155,7 +161,7 @@ def main(argv,argc):
 				updateextradata(userid,userdict,typelist[i],typename)
 		
 		#Save tag dictionary at this point for 'upload'
-		if typename=='upload':
+		if typename == 'post' or typename=='upload':
 			#Tried several different checks for Unicode errors, but they still occurred :(
 			#This prevents the saved tag dictionary from being destroyed
 			try:
@@ -192,7 +198,7 @@ def main(argv,argc):
 
 #TAG FUNCTIONS
 
-def gettaginfo(tagname):
+def gettaginfo(tagname,postid):
 	"""Query danbooru for the category of a tag"""
 	
 	#Check for unicode characters in the tagname
@@ -260,7 +266,7 @@ def updatetagdictwaliases(starttime,tagdict):
 			else:
 				#Otherwise, we need to query Danbooru
 				DebugPrint(tagaliaslist[i]['consequent_name'],'not found in tagdict')
-				tagtype = gettaginfo(tagaliaslist[i]['consequent_name'])
+				tagtype = gettaginfo(tagaliaslist[i]['consequent_name'],0)
 				
 				#If unicode was found, then document for later and continue
 				if(tagtype < 0):
@@ -275,36 +281,46 @@ def updatetagdictwaliases(starttime,tagdict):
 
 #POST SPECIFIC FUNCTIONS#
 
-def updatepostdata(userid,userdict,typeinfo):
+def updatepostdata(userid,userdict,typeinfo,tagdict):
 	"""Update post columns for userid"""
+	postid = typeinfo['post_id']
 	dirty = 0
-	if isupload(typeinfo):
-		DebugPrint("Upload")
-		dirty = 1
-		userdict[userid][1] += 1
-	if istagadd(typeinfo):
-		DebugPrint("Tag Add")
-		dirty = 1
-		userdict[userid][2] += 1
-	if istagremove(typeinfo):
-		DebugPrint("Tag Remove")
-		dirty = 1
-		userdict[userid][3] += 1
 	if isparentchange(typeinfo):
 		DebugPrint("Parent Change")
 		dirty = 1
-		userdict[userid][4] += 1
+		userdict[userid][1] += 1
 	if isratingchange(typeinfo):
 		DebugPrint("Rating Change")
 		dirty = 1
-		userdict[userid][5] += 1
+		userdict[userid][2] += 1
 	if issourcechange(typeinfo):
 		DebugPrint("Source")
 		dirty = 1
-		userdict[userid][6] += 1
+		userdict[userid][3] += 1
+	
+	tagtypes = counttags(typeinfo['added_tags'].split(),tagdict,postid)
+	userdict[userid][4] += tagtypes[0]						#general
+	userdict[userid][5] += tagtypes[4]						#character
+	userdict[userid][6] += tagtypes[3]						#copyright
+	userdict[userid][7] += tagtypes[1]						#artist
+	userdict[userid][8] += tagtypes[2]						#empty
+	if any(tagtypes):
+		DebugPrint("Tag Remove")
+		dirty = 1
+	
+	tagtypes = counttags(typeinfo['removed_tags'].split(),tagdict,postid)
+	userdict[userid][9] += tagtypes[0]						#general
+	userdict[userid][10] += tagtypes[4]						#character
+	userdict[userid][11] += tagtypes[3]						#copyright
+	userdict[userid][12] += tagtypes[1]						#artist
+	userdict[userid][13] += tagtypes[2]						#empty
+	if any(tagtypes):
+		DebugPrint("Tag Remove")
+		dirty = 1
+	
 	if dirty == 0:
 		DebugPrint("Other")
-		userdict[userid][7] += 1
+		userdict[userid][14] += 1
 	
 	DebugPrintInput('----------')
 
@@ -312,13 +328,13 @@ def metatagexists(string):
 	return (parentexists(string) or sourceexists(string) or ratingexists(string))
 
 def parentexists(string):
-	return ((string.find("parent:")) > 0)
+	return ((string.find("parent:")) >= 0)
 
 def sourceexists(string):
-	return ((string.find("source:")) > 0)
+	return ((string.find("source:")) >= 0)
 
 def ratingexists(string):
-	return ((string.find("rating:")) > 0)
+	return ((string.find("rating:")) >= 0)
 
 def metatagcount(string):
 	return parentcount(string) + sourcecount(string) + ratingcount(string)
@@ -429,8 +445,7 @@ def getpostdata(postid,tagstringver,tagdict):
 		#4. Not an empty tag
 		if (tagstringver[i] not in tagstringpost) and not (isdisregardtag(tagstringver[i])) and \
 			(tagstringver[i] in tagdict) and (tagdict[tagstringver[i]]!=2):
-			#print("Tag error1",tagstringver[i],postid)
-			#input()
+			DebugPrintInput("Tag error1",tagstringver[i],postid)
 			returnvalue[2] += 1
 	
 	return returnvalue
@@ -448,6 +463,10 @@ def counttags(tagstring,tagdict,postid):
 			#Don't count metatags
 			continue
 		
+		if isdisregardtag(tagstring[i]):
+			#Don't count request tags
+			continue
+		
 		if (tagstring[i] in tagdict):
 			#Found in the Tag dictionary, so record the result
 			tagcount[tagdict[tagstring[i]]] += 1
@@ -456,7 +475,7 @@ def counttags(tagstring,tagdict,postid):
 			tagmiss = 1
 			
 			#Get the category of the new tag
-			returntag = gettaginfo(tagstring[i])
+			returntag = gettaginfo(tagstring[i],postid)
 			
 			#If unicode was found, then document for later and continue
 			if returntag < 0:
@@ -473,11 +492,11 @@ def counttags(tagstring,tagdict,postid):
 			tagcount[returntag] += 1
 			
 			#Print some feedback
-			print(".",end="",flush=True)
+			#DebugPrint(".",end="",flush=True)
 	
 	#Print some more feedback
-	if tagmiss == 1:
-		print("T",end="",flush=True)
+	#if tagmiss == 1:
+		#DebugPrint("T",end="",flush=True)
 	
 	return tagcount
 
@@ -834,10 +853,10 @@ def updatebulkupdaterequestdata(userid,userdict,typeentry):
 	DebugPrintInput("-------")
 
 if __name__ =='__main__':
-	#Arguments from command-line
-	if (len(sys.argv) < 2):
-		print("Invalid input")
-		sys.exit(-1)
-	
-	#Call main function
-	main(sys.argv,len(sys.argv))
+	parser = argparse.ArgumentParser(description="Generate a Danbooru User Report")
+	parser.add_argument('category',help="post, upload, note, artist_commentary, pool, "
+						"artist, wiki_page, forum_topic, forum_post, tag_implication, "
+						"tag_alias, bulk_update_request, post_appeal, comment")
+	parser.add_argument('--new', help="Create a new user report",action="store_true")
+	args = parser.parse_args()
+	main(args)

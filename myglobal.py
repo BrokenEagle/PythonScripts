@@ -9,6 +9,6 @@ csvfilepath = "csv\\"
 dtextfilepath = "dtext\\"
 imagefilepath = "pictures\\"
 
-#Uncomment the following lines (remove the '#') and enter user specific info
+"""Uncomment the following lines (remove the '#') and enter user specific info"""
 #username = 'USERNAME_GOES_HERE'
 #apikey = 'API_KEY_GOES_HERE'
