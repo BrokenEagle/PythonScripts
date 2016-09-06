@@ -6,8 +6,9 @@
 2. Library Files
 
 	a. myglobal.py - 	Global variables for customizing script environment
-	b. misc.py 	 	Functions that are universally applicable to any script
+	b. misc.py -	 	Functions that are universally applicable to any script
 	c. danbooru.py - 	Functions specifically to help communicate with Danbooru
+	d. keyoutput.py -	Allows for key output to be programmatically be sent to the system
 
 3. Application Files
 
