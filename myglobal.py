@@ -3,6 +3,7 @@
 
 #GLOBAL VARIABLES
 
+"""Filepaths with backslashes ('\') need to be double escaped ('\\') as demonstrated below"""
 workingdirectory = "D:\\temp\\"
 datafilepath = "data\\"
 csvfilepath = "csv\\"
