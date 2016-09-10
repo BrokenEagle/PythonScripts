@@ -1,12 +1,11 @@
 #TAGGARDENING.PY
 
 #PYTHON IMPORTS
-import re
 import os
 import sys
 import time
 import msvcrt
-import argparse
+from argparse import ArgumentParser
 from subprocess import Popen, CREATE_NEW_CONSOLE
 
 #MY IMPORTS
@@ -15,7 +14,8 @@ from danbooru import SubmitRequest,JoinArgs,GetArgUrl2,GetCurrFilePath,EncodeDat
 from keyoutput import AltTab
 
 #LOCAL GLOBALS
-displaystring="Page (%d/%d): #%d/%d\n[%s]Small [%s]Medium [%s]Large [%s]Huge [%s]Gigantic \n[%s]Flat Chest [%s]Remove"
+bannerstring="Page (%d/%d): #%d/%d <post #%d>"
+menustring="[%s]Small [%s]Medium [%s]Large [%s]Huge [%s]Gigantic \n[%s]Flat Chest [%s]Remove"
 breastsimpstr = ['backboob', 'bouncing_breasts', 'breast_rest', 'breasts_on_head', 'carried_breast_rest', 'breasts_apart', 'breasts_outside', 'breast_squeeze', 'bursting_breasts', 'cleavage', 'cum_on_breasts', 'floating_breasts', 'gigantic_breasts', 'hanging_breasts', 'huge_breasts', 'large_breasts', 'medium_breasts', 'perky_breasts', 'sagging_breasts', 'sideboob', 'small_breasts', 'unaligned_breasts', 'underboob']
 searchtags = 'breasts -small_breasts -medium_breasts -large_breasts -huge_breasts -gigantic_breasts'
 pagelimit = 100
@@ -66,8 +66,9 @@ def getuserkeypresses(postid,tag_string,*pageinfo):
 		
 		if redraw:
 			temp = os.system('cls')
-			print(displaystring % (pageinfo+setmenutuple(breastsarray)))
-			print("Breast Implications: (%d)" % postid)
+			print(bannerstring % (pageinfo + (postid,)))
+			print(menustring % setmenutuple(breastsarray))
+			print("Breast Implications:")
 			breastimplications = setbreastimplications(tag_string)
 			printbreastimplications(breastimplications)	
 		
@@ -135,9 +136,15 @@ def main(args):
 	else:
 		searchtags += " id:" + args.id
 	
-	#Start downloader in new console so images can be downloaded in the background
-	p = Popen([sys.executable,'postdownloader.py',searchtags],creationflags=CREATE_NEW_CONSOLE)
-	
+	beginning=0
+	if not args.nodownload:
+		
+		#Since we're starting up a new window, the first time will require 2 AltTabs
+		beginning=1
+		
+		#Start downloader in new console so images can be downloaded in the background
+		p = Popen(['cmd','/c','start','/min',sys.executable,'postdownloader.py',searchtags],creationflags=CREATE_NEW_CONSOLE)
+
 	#Get the page count for tagging
 	tagsurl = GetArgUrl2('tags',searchtags)
 	urladd = JoinArgs(tagsurl)
@@ -154,18 +161,16 @@ def main(args):
 			#Check to see that postdownloader.py has already downloaded the file
 			currfile = GetCurrFilePath(postlist[y])
 			print("Checking file",currfile)
-			while not os.path.exists(currfile):
+			while (not os.path.exists(currfile)) or ((os.stat(currfile)).st_size == 0):
 					print('.', end="", flush=True)
 					time.sleep(1)
-			
-			#Sleep again, to give the OS time to fully write the file
-			time.sleep(1)
 			
 			#Start the downloaded file with its default viewer
 			temp = os.startfile(currfile)
 			
 			#Configurable Alt Tab: gets back screen focus
-			AltTab(1,0.1) 
+			AltTab(1.5,0.1,1+beginning) 
+			beginning=0
 			
 			#Get user input for tagging
 			pageinfo = (totalpages - x,totalpages,y+1,len(postlist))
@@ -178,10 +183,11 @@ def main(args):
 	print("Done!")
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description="Tag Images From Danbooru")
+	parser = ArgumentParser(description="Tag Images From Danbooru")
 	group = parser.add_mutually_exclusive_group(required=True)
 	group.add_argument('-d','--date',type=DateStringInput,help="Date of images to tag",)
 	group.add_argument('-i','--id',type=IDStringInput,help="ID's of images to tag")
+	parser.add_argument('--nodownload',required=False,action="store_true",default=False)
 	args = parser.parse_args()
 	
 	main(args)

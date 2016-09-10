@@ -86,14 +86,16 @@ def ReleaseKey(hexKeyCode):
                             dwFlags=KEYEVENTF_KEYUP))
     user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
 
-def AltTab(sleep1=1,sleep2=2):
+def AltTab(sleep1=1,sleep2=2,numtimes=1):
     """Press Alt+Tab and hold Alt key for 2 seconds
     in order to see the overlay.
     """
     time.sleep(sleep1)
     PressKey(VK_MENU)   # Alt
-    PressKey(VK_TAB)    # Tab
-    ReleaseKey(VK_TAB)  # Tab~
+    for i in range(0,numtimes):
+        PressKey(VK_TAB)    # Tab
+        ReleaseKey(VK_TAB)  # Tab~
+        time.sleep(0.05)
     time.sleep(sleep2)
     ReleaseKey(VK_MENU) # Alt~
 
