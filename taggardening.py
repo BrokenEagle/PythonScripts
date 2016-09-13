@@ -136,13 +136,9 @@ def main(args):
 	else:
 		searchtags += " id:" + args.id
 	
-	beginning=0
 	if not args.nodownload:
-		
-		#Since we're starting up a new window, the first time will require 2 AltTabs
-		beginning=1
-		
 		#Start downloader in new console so images can be downloaded in the background
+		beginning=1
 		p = Popen(['cmd','/c','start','/min',sys.executable,'postdownloader.py',searchtags],creationflags=CREATE_NEW_CONSOLE)
 
 	#Get the page count for tagging
