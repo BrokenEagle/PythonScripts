@@ -16,14 +16,26 @@ debugModule = {}
 #EXTERNAL FUNCTIONS
 
 #General functions
-def RemoveDuplicates(values):
-    output = []
-    seen = set()
-    for value in values:
-        if value not in seen:
-            output.append(value)
-            seen.add(value)
-    return output
+
+def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
+	"""Remove duplicates found in a list with an optional transformation and sorting"""
+	output = []
+	seen = []
+	
+	#Only useful if a transformation is also applied
+	if sort != None:
+		values = sorted(values, key=sort, reverse=reverse)
+	
+	valuesprime = values
+	if transform != None:
+		valuesprime = list(map(transform,values))
+	
+	for i in range(0,len(valuesprime)):
+		if valuesprime[i] not in seen:
+			output.append(values[i])
+			seen.append(valuesprime[i])
+	
+	return output
 
 def GetCallerModule(level):
 	caller = inspect.currentframe()
@@ -67,6 +79,9 @@ def PutGetUnicode(filepath,optype,data=None):
 		PutGetRaw(filepath,optype[0]+'b',data=repr(data).encode('UTF'))
 	elif optype[0] == 'r':
 		return eval((PutGetRaw(filepath,optype[0]+'b')).decode('UTF'))
+
+def WriteUnicode(outfile,string):
+	outfile.write(string.encode('UTF'))
 
 def FindUnicode(string):
 	for i in range(0,len(string)):
