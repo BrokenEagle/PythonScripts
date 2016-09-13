@@ -89,7 +89,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			misc.DebugPrint("After Eval")
 			return submittemp
 		#Success, but the server returned nothing back to evaluate
-		elif httpresponse.status == 204:
+		elif (httpresponse.status > 200) and (httpresponse.status < 300):
 			return httpresponse
 		#Anything other than a 200 or 204 should raise an exception and be caught above
 		#The following is just in case the above is not true
@@ -120,6 +120,7 @@ def DownloadFile(postdict):
 	
 	localfilepath = GetCurrFilePath(postdict)
 	serverfilepath = GetServFilePath(postdict)
+	misc.DebugPrintInput(localfilepath,serverfilepath)
 	
 	#Create the directory for the local file if it doesn't already exist
 	misc.CreateDirectory(localfilepath)
@@ -176,6 +177,13 @@ def EncodeData(typename,keyname,data):
 	"""Encode data for the senddata parameter of SubmitRequest."""
 	return (GetArgUrl(typename,keyname,data)).encode('ascii')
 
+def JoinData(*args):
+	"""Take multiple POST arguments of form "name=val" and concatenate them together"""
+	bytes = b''
+	for arg in args:
+		bytes += arg + b'&'
+	return bytes[:-1]
+
 def ProcessTimestamp(timestring):
 	datetuple = datetime.strptime(timestring,"%Y-%m-%dT%H:%M:%S.%fZ")
 	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000)
@@ -195,6 +203,16 @@ def IDStringInput(string):
 	if start > end:
 		raise argparse.ArgumentTypeError("Start ID must be less than End ID")
 	return match.group()
+
+def HasChild(postdict):
+	return postdict['has_visible_children']
+
+def HasParent(postdict):
+	return (postdict['parent_id'] != None)
+
+def HasRelated(postdict):
+	return (HasParent(postdict) or HasChild(postdict))
+
 
 #INTERNAL HELPER FUNCTIONS
 
