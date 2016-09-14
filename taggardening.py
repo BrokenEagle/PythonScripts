@@ -136,6 +136,7 @@ def main(args):
 	else:
 		searchtags += " id:" + args.id
 	
+	beginning=0
 	if not args.nodownload:
 		#Start downloader in new console so images can be downloaded in the background
 		beginning=1

@@ -13,7 +13,7 @@ import urllib.request
 import urllib.parse
 
 #MY IMPORTS
-import misc
+from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail
 from myglobal import username,apikey,workingdirectory,imagefilepath
 
 #LOCAL GLOBALS
@@ -59,10 +59,10 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 	while True:
 		#Failures occur most often in two places. The first is communicating with Danbooru
 		try:
-			misc.DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
+			DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
 			req = urllib.request.Request(url=urlsubmit,data=senddata,method=httpmethod)
 			httpresponse = urllib.request.urlopen(req)
-			misc.DebugPrintInput(httpresponse.status,httpresponse.reason)
+			DebugPrintInput(httpresponse.status,httpresponse.reason)
 		except urllib.error.HTTPError as inst:
 			if AbortRetryFail(urlsubmit,inst):
 				continue
@@ -77,7 +77,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			#The second most common error is evaluating the response from Danbooru.
 			#If the response is particularly large, the following will hang.
 			#This can be detected by the printing of "Before Eval" without the subsequent "After Eval"
-			misc.DebugPrint("Before Eval")
+			DebugPrint("Before Eval")
 			try:
 				evaltemp = httpresponse.read()
 				submittemp = eval((evaltemp).decode(encoding='utf-8'))
@@ -86,7 +86,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 				print(urlsubmit,httpmethod)
 				print(inst)
 				sys.exit(-1)
-			misc.DebugPrint("After Eval")
+			DebugPrint("After Eval")
 			return submittemp
 		#Success, but the server returned nothing back to evaluate
 		elif (httpresponse.status > 200) and (httpresponse.status < 300):
@@ -120,10 +120,10 @@ def DownloadFile(postdict):
 	
 	localfilepath = GetCurrFilePath(postdict)
 	serverfilepath = GetServFilePath(postdict)
-	misc.DebugPrintInput(localfilepath,serverfilepath)
+	DebugPrintInput(localfilepath,serverfilepath)
 	
 	#Create the directory for the local file if it doesn't already exist
-	misc.CreateDirectory(localfilepath)
+	CreateDirectory(localfilepath)
 	
 	#Does the file already exist with a size > 0
 	if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
@@ -219,16 +219,3 @@ def HasRelated(postdict):
 def GetDanbooruUrl(opname,typename):
 	"""Build Danbooru URL on the fly"""
 	return (danbooru_domain + '/' + typename + danbooru_ops[opname][0]+danbooru_auth)
-
-def AbortRetryFail(url,reason):
-	"""Exception/Error handler"""
-	print(url)
-	print(reason)
-	while True:
-		keyinput = input("(A)bort, (R)etry, (F)ail? ")
-		if keyinput.lower() == 'a':
-			return False
-		if keyinput.lower() == 'r':
-			return True
-		if keyinput.lower() == 'f':
-			sys.exit(-1)

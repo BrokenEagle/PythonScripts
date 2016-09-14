@@ -47,6 +47,19 @@ def SetPrecision(number,precision):
 	placenum = 10**precision
 	return (int(number*placenum))/placenum
 
+def AbortRetryFail(*args):
+	"""Exception/Error handler"""
+	for arg in args:
+		print(arg)
+	while True:
+		keyinput = input("(A)bort, (R)etry, (F)ail? ")
+		if keyinput.lower() == 'a':
+			return False
+		if keyinput.lower() == 'r':
+			return True
+		if keyinput.lower() == 'f':
+			sys.exit(-1)
+
 #IO/String functions
 
 def CreateDirectory(filepath):
