@@ -8,6 +8,7 @@ import re
 import os
 import sys
 import time
+import urllib.request
 
 #LOCAL GLOBALS
 
@@ -50,7 +51,7 @@ def SetPrecision(number,precision):
 def AbortRetryFail(*args):
 	"""Exception/Error handler"""
 	for arg in args:
-		print(arg)
+		SafePrint(arg)
 	while True:
 		keyinput = input("(A)bort, (R)etry, (F)ail? ")
 		if keyinput.lower() == 'a':
@@ -63,15 +64,51 @@ def AbortRetryFail(*args):
 #IO/String functions
 
 def CreateDirectory(filepath):
+	"""Create the directory path if it doesn't already exist"""
 	directory = GetDirectory(filepath)
 	if not os.path.exists(directory):
 		os.makedirs(directory)
+
+def DownloadFile(localfilepath,serverfilepath):
+	"""Download a remote file to a local location"""
+	#Create the directory for the local file if it doesn't already exist
+	CreateDirectory(localfilepath)
+	print(localfilepath,serverfilepath)
+	#Does the file already exist with a size > 0
+	if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
+		while True:
+			with open(localfilepath,'wb') as outfile:
+				while True:
+					try:
+						response = urllib.request.urlopen(serverfilepath)
+						if response.status == 200:
+							break
+					except:
+						print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
+						input()
+						pass
+					if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
+						return -1
+				if not (outfile.write(response.read())):
+					if not AbortRetryFail(localfilepath,outfile):
+						return -1
+				else:
+					return 0
 
 def GetDirectory(filepath):
 	return filepath[:filepath.rfind('\\')]
 
 def GetFilename(filepath):
 	return filepath[filepath.rfind('\\')+1:]
+
+def GetHTTPDirectory(webpath):
+	return webpath[:webpath.rfind('/')]
+
+def GetHTTPFilename(webpath):
+	start = webpath.rfind('/')+1
+	isextras = webpath.rfind('?')
+	end = isextras if isextras > 0 else len(webpath)+1
+	return webpath[start:end]
 
 def PutGetRaw(filepath,optype,data=None):
 	CreateDirectory(filepath)

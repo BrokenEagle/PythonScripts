@@ -13,7 +13,7 @@ import urllib.request
 import urllib.parse
 
 #MY IMPORTS
-from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail
+from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile
 from myglobal import username,apikey,workingdirectory,imagefilepath
 
 #LOCAL GLOBALS
@@ -64,7 +64,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			httpresponse = urllib.request.urlopen(req)
 			DebugPrintInput(httpresponse.status,httpresponse.reason)
 		except urllib.error.HTTPError as inst:
-			if AbortRetryFail(urlsubmit,inst):
+			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
 				continue
 			else:
 				return -1
@@ -96,54 +96,35 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 		elif not AbortRetryFail(urlsubmit,(httpresponse.status,httpresponse.reason)):
 			return -1
 
-def GetCurrFilePath(postdict):
-	"""Get filepath for storing server medium files on local system.
+def GetCurrFilePath(postdict,size="medium"):
+	"""Get filepath for storing server different sized files on local system.
 	Input is a post dictionary obtained from Danbooru with either 'list' or 'show'.
 	"""
-	if postdict["has_large"] == True:
-		if postdict["file_ext"] == "zip":
-			currfile = workingdirectory + imagefilepath + postdict["md5"] + '.webm'
-		else:#
-			currfile = workingdirectory + imagefilepath + postdict["md5"] + '.jpg'
-	else:
-		currfile = workingdirectory + imagefilepath + postdict["md5"] + '.' + postdict["file_ext"]
-	return currfile
+	if size == "small":
+		return workingdirectory + imagefilepath + postdict["md5"] + '.jpg'
+	if size == "medium":
+		return workingdirectory + imagefilepath + postdict["large_file_url"][postdict["large_file_url"].rfind('/')+1:]
+	if size == "large":
+		return workingdirectory + imagefilepath + postdict["md5"] + '.' + postdict["file_ext"]
 
-def GetServFilePath(postdict):
-	"""Get serverpath for medium files
+def GetServFilePath(postdict,size="medium"):
+	"""Get serverpath for different sized files
 	Input is a post dictionary obtained from Danbooru with either 'list' or 'show'.
 	"""
-	return danbooru_domain + postdict["large_file_url"]
+	if size=="small":
+		return danbooru_domain + postdict["preview_file_url"]
+	if size=="medium":
+		return danbooru_domain + postdict["large_file_url"]
+	if size=="large":
+		return danbooru_domain + postdict["file_url"]
 
-def DownloadFile(postdict):
-	"""Download a file from the Internet"""
+def DownloadPostImage(postdict,size="medium"):
+	"""Download a post image from Danbooru"""
 	
-	localfilepath = GetCurrFilePath(postdict)
-	serverfilepath = GetServFilePath(postdict)
+	localfilepath = GetCurrFilePath(postdict,size)
+	serverfilepath = GetServFilePath(postdict,size)
 	DebugPrintInput(localfilepath,serverfilepath)
-	
-	#Create the directory for the local file if it doesn't already exist
-	CreateDirectory(localfilepath)
-	
-	#Does the file already exist with a size > 0
-	if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
-		while True:
-			with open(localfilepath,'wb') as outfile:
-				while True:
-					try:
-						response = urllib.request.urlopen(serverfilepath)
-						if response.status == 200:
-							break
-					except:
-						pass
-					if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
-						return -1
-				if not (outfile.write(response.read())):
-					if not AbortRetryFail(localfilepath,outfile):
-						return -1
-				else:
-					return 0
-
+	return DownloadFile(localfilepath,serverfilepath)
 
 #EXTERNAL HELPER FUNCTIONS
 
