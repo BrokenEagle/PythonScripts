@@ -6,13 +6,14 @@ import os
 import sys
 import time
 import argparse
+from functools import reduce
 from collections import OrderedDict
 
 #LOCAL IMPORTS
-from misc import PutGetData,CreateDirectory
+from misc import PutGetData,PutGetUnicode,CreateDirectory,SafePrint
 from myglobal import workingdirectory,datafilepath,dtextfilepath
 from danbooru import SubmitRequest,GetArgUrl
-from userreport import userdictfile,versionedtypes,nonversionedtypes,validtypes
+from userreport import userdictfile,usertagdictfile,versionedtypes,nonversionedtypes,validtypes
 
 #MODULE GLOBAL VARIABLES
 builderlevel = 32
@@ -59,6 +60,7 @@ aliasimplicationcolumns = "[th]Total[/th]\r\n[th]Approved[/th]\r\n"
 BURcolumns = "[th]Total[/th]\r\n[th]Approved[/th]\r\n[th]Rejected[/th]\r\n"
 
 uploadtagcolumns = "[th]Tags/ Upload[/th]\r\n[th]Uploads[/th]\r\n"
+posttagcountcolumns = "[th]Total[/th]\r\n[th]Tags[/th]\r\n"
 
 #MAIN FUNCTION
 
@@ -99,6 +101,17 @@ def main(args):
 	
 	#Open the user dictionary for sorting
 	endid,startid,starttime,userdict = PutGetData(userdictfile,'r')
+	print(len(userdict))
+	
+	usertagdict = {}
+	if typename=='post' and args.sorttype=='tagcount':
+		if os.path.exists(usertagdictfile):
+			usertagdict = PutGetUnicode(usertagdictfile,'r')
+			for key in usertagdict:
+				usertagdict[key] = OrderedDict(sorted(usertagdict[key].items(), key=lambda x:x[1], reverse=True))
+		else:
+			print("No user tag dict file")
+			return -1
 	
 	#Set the cutoff membertype
 	if membertype == 'member':
@@ -116,7 +129,7 @@ def main(args):
 		userdict = updatepostcolumns(userdict,sorttype)
 	elif typename == 'upload':
 		userdict = updateuploadcolumns(userdict,sorttype)
-	
+	print(len(userdict))
 	#Set the name of the dtext file according to the various parameters
 	dtextfile = dtextfile % (typename+membertype+tableorder+sorttype)
 	
@@ -134,6 +147,7 @@ def main(args):
 	datadict = {}
 	numrows = 1
 	
+	print(tablesize,numrows,tablecutoff[typename],len(Ouserdict))
 	#Iterate through dictionary until the cutoff is reached
 	for key in Ouserdict:
 		if (Ouserdict[key][0] < tablecutoff[typename]) and (tablesize == 0):
@@ -164,7 +178,7 @@ def main(args):
 			usernamedict[key] = ('[u]'+repr(username) + ':[/users/' + repr(key) + '][/u]')
 		
 		#Don't create a data dictionary for 'top/bottom' tables
-		if tablesize == 0:
+		if tablesize == 0 and args.sorttype != 'tagcount':
 			if typename == 'upload':
 				#With uploads, use the post search user:<USERNAME> metatag
 				datadict[key] = repr(repr(Ouserdict[key][0])) + ':[/posts?tags=user%3A' + username + ']'
@@ -185,7 +199,7 @@ def main(args):
 	
 	print("Writing Data to DText File!")
 	membertextstring = "[expand=%s Details - Updated at %s]\r\n" % (membertype.title() + ' ' + (typename.replace('_',' ')).title(),time.asctime((time.gmtime(starttime))))
-	membertextstring += constructtable(typename,displaydict,usernamedict,datadict,tablesize,sorttype)
+	membertextstring += constructtable(typename,displaydict,usernamedict,datadict,usertagdict,tablesize,sorttype)
 	membertextstring += "\r\n[b]Note:[/b] Cutoff was %d total %s changes; duration was 30 days\r\n[/expand]" % (tablecutoff[typename],(typename.replace('_',' ')).title())
 	
 	#Print to a temp file first
@@ -206,14 +220,17 @@ def main(args):
 
 #COLUMN FUNCTIONS
 def updatepostcolumns(userdict,sorttype):
-	tempdict = {}
 	if sorttype == '':
-		for key in  userdict:
-			tempdict[key] = userdict[key][0:4] + [(userdict[key][4],userdict[key][9])] +\
+		for key in userdict:
+			userdict[key] = userdict[key][0:4] + [(userdict[key][4],userdict[key][9])] +\
 						[(userdict[key][5],userdict[key][10])] + [(userdict[key][6],userdict[key][11])] +\
 						[(userdict[key][7],userdict[key][12])] + [(userdict[key][8],userdict[key][13])] +\
 						[userdict[key][14]]
-	
+		return userdict
+	elif sorttype == 'tagcount':
+		for key in userdict:
+			userdict[key] = [reduce(lambda x,y:x+y,userdict[key][4:13])]
+		return userdict
 	return tempdict
 
 def updateuploadcolumns(userdict,sorttype=None):
@@ -265,8 +282,12 @@ def constructtableheader(typename,sorttype):
 	#Sorting being done by other column
 	if (typename == 'upload') and (sorttype == 'tag'):
 		return pretableheader + uploadtagcolumns + posttableheader
+	
+	#Sorting being done on different table
+	if (typename == 'post') and (sorttype == 'tagcount'):
+		return pretableheader + posttagcountcolumns + posttableheader
 
-def constructtable(typename,ordereddict,usernamedict,datadict,tablesize,sorttype):
+def constructtable(typename,ordereddict,usernamedict,datadict,usertagdict,tablesize,sorttype):
 	"""Dynamically create the DText Table"""
 	
 	#Create the DText table header first
@@ -286,7 +307,7 @@ def constructtable(typename,ordereddict,usernamedict,datadict,tablesize,sorttype
 			#other FOR loop exit condition
 			break
 		
-		#Add first 3 columns
+		#Add first 2 columns
 		string += "[tr]\r\n[th]" + str(i) + \
 				"[/th]\r\n[th]" + usernamedict[key]
 		
@@ -296,9 +317,17 @@ def constructtable(typename,ordereddict,usernamedict,datadict,tablesize,sorttype
 			string += "[/th]\r\n[th]" + str(ordereddict[key][0])
 		
 		#Then add in the rest
-		for j in range(1,len(ordereddict[key])):
-			string += "[/th]\r\n[th]" + ((str(ordereddict[key][j])).replace('(','')).replace(')','')
-		
+		if sorttype=='tagcount':
+			j = 0
+			string += "[/th]\r\n[th]" 
+			for tag in usertagdict[key]:
+				if j >= 10:
+					break
+				string += '(' + tag + ',' + str(usertagdict[key][tag]) + ') '
+				j += 1
+		else:
+			for val in ordereddict[key]:
+				string += "[/th]\r\n[th]" + ((str(val)).replace('(','')).replace(')','')
 		#End this row
 		string += "[/th]\r\n[/tr]\r\n"
 		
@@ -318,7 +347,7 @@ if __name__ == '__main__':
 	parser.add_argument('-m','--memberlevel',required=False, help="Specify member level",choices=['member','builder'],default='')
 	parser.add_argument('-r','--ranking',required=False, help="Specify rank order",choices=['top','bottom'],default='')
 	parser.add_argument('-s','--tablesize',required=False,type=int, help="Size of the ranking table (Default: 25)",default=25)
-	parser.add_argument('-t','--sorttype',required=False, help="post: ('tag')",choices=['tag'],default='')
+	parser.add_argument('-t','--sorttype',required=False, help="post: ('tag')",choices=['tag','tagcount'],default='')
 	args = parser.parse_args()
 	
 	inputdependencies=[getattr(args,key) is not '' for key in ('ranking','sorttype')]

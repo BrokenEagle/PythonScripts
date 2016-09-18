@@ -8,7 +8,7 @@ import sys
 import argparse
 
 #LOCAL IMPORTS
-from misc import PutGetData,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
+from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
 				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,\
 				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff
 from danbooru import SubmitRequest,JoinArgs,GetArgUrl,GetPageUrl,ProcessTimestamp
@@ -16,6 +16,7 @@ from myglobal import workingdirectory,datafilepath,csvfilepath
 
 #MODULE GLOBAL VARIABLES
 userdictfile = workingdirectory + datafilepath + '%suserdict.txt'
+usertagdictfile = workingdirectory + datafilepath + 'usertagdict.txt'
 csvfile = workingdirectory + csvfilepath + '%s.csv'
 tagdictfile = workingdirectory + "tagdict.txt"
 
@@ -60,15 +61,15 @@ def main(args):
 		userdict = {}
 		starttime = GetCurrentTime()
 		beginningid = None
-		
-		#Prepare for the first API call to Danbooru
-		if (typename == 'forum_topic') or (typename == 'bulk_update_request') or \
-			(typename == 'tag_implication') or (typename == 'tag_alias'):
-			#Setting the page argument fixes ordering issues for the above categories
-			#It's set very high to prevent any actual instances from being above it
-			urladd=JoinArgs(GetArgUrl('limit','',typelimit),GetPageUrl(100000))
-		else:
-			urladd=JoinArgs(GetArgUrl('limit','',typelimit))
+	
+	#Prepare for the first API call to Danbooru
+	if (typename == 'forum_topic') or (typename == 'bulk_update_request') or \
+		(typename == 'tag_implication') or (typename == 'tag_alias'):
+		#Setting the page argument fixes ordering issues for the above categories
+		#It's set very high to prevent any actual instances from being above it
+		urladd=JoinArgs(GetArgUrl('limit','',typelimit),GetPageUrl(100000))
+	else:
+		urladd=JoinArgs(GetArgUrl('limit','',typelimit))
 	
 	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
 	if typename == 'post' or typename == 'upload':
@@ -76,6 +77,13 @@ def main(args):
 			tagdict = PutGetData(tagdictfile,'r')
 		else:
 			tagdict = {}
+	
+	#Keep track of the tags added/removed
+	if typename=='post':
+		if (os.path.exists(usertagdictfile)) and (not (args.new)):
+			usertagdict = PutGetUnicode(usertagdictfile,'r')
+		else:
+			usertagdict = {}
 	
 	#For uploads, update tag dictionary with recent aliases to remove false tag errors
 	if typename == 'upload':
@@ -142,7 +150,7 @@ def main(args):
 			
 			#Go to each types's handler function to process more data
 			if typename=='post':
-				updatepostdata(userid,userdict,typelist[i],tagdict)
+				updatepostdata(userid,userdict,typelist[i],tagdict,usertagdict)
 			elif typename=='upload':
 				updateuploaddata(userid,userdict,typelist[i],tagdict)
 			elif typename=='comment':
@@ -170,6 +178,9 @@ def main(args):
 				print(MakeUnicodePrintable(inst.object[inst.start-5:inst.end+5]))
 				input()
 			PutGetData(tagdictfile,'w',tagdict)
+		
+		if typename == 'post':
+			PutGetUnicode(usertagdictfile,'w',usertagdict)
 		
 		#Also save the user data at this point
 		PutGetData(userdictfile,'w',[currentid,beginningid,starttime,userdict])
@@ -281,7 +292,7 @@ def updatetagdictwaliases(starttime,tagdict):
 
 #POST SPECIFIC FUNCTIONS#
 
-def updatepostdata(userid,userdict,typeinfo,tagdict):
+def updatepostdata(userid,userdict,typeinfo,tagdict,usertagdict):
 	"""Update post columns for userid"""
 	postid = typeinfo['post_id']
 	dirty = 0
@@ -305,6 +316,7 @@ def updatepostdata(userid,userdict,typeinfo,tagdict):
 	userdict[userid][7] += tagtypes[1]						#artist
 	userdict[userid][8] += tagtypes[2]						#empty
 	if any(tagtypes):
+		populateusertagdict(userid,typeinfo['added_tags'].split(),usertagdict)
 		DebugPrint("Tag Remove")
 		dirty = 1
 	
@@ -315,6 +327,7 @@ def updatepostdata(userid,userdict,typeinfo,tagdict):
 	userdict[userid][12] += tagtypes[1]						#artist
 	userdict[userid][13] += tagtypes[2]						#empty
 	if any(tagtypes):
+		populateusertagdict(userid,typeinfo['removed_tags'].split(),usertagdict)
 		DebugPrint("Tag Remove")
 		dirty = 1
 	
@@ -323,6 +336,15 @@ def updatepostdata(userid,userdict,typeinfo,tagdict):
 		userdict[userid][14] += 1
 	
 	DebugPrintInput('----------')
+
+def populateusertagdict(userid,taglist,usertagdict):
+	for tag in taglist:
+		if metatagexists(tag):
+			continue
+		if userid not in usertagdict:
+			usertagdict[userid]={}
+		usertagdict[userid][tag] = (usertagdict[userid][tag] + 1) if (tag in usertagdict[userid]) else 1
+		
 
 def metatagexists(string):
 	return (parentexists(string) or sourceexists(string) or ratingexists(string))
