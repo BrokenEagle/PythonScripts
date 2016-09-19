@@ -103,7 +103,8 @@ def GetCurrFilePath(postdict,size="medium"):
 	if size == "small":
 		return workingdirectory + imagefilepath + postdict["md5"] + '.jpg'
 	if size == "medium":
-		return workingdirectory + imagefilepath + postdict["large_file_url"][postdict["large_file_url"].rfind('/')+1:]
+		fileext = postdict["large_file_url"][postdict["large_file_url"].rfind('.'):]
+		return workingdirectory + imagefilepath + postdict["md5"] + fileext
 	if size == "large":
 		return workingdirectory + imagefilepath + postdict["md5"] + '.' + postdict["file_ext"]
 
