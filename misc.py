@@ -73,7 +73,6 @@ def DownloadFile(localfilepath,serverfilepath):
 	"""Download a remote file to a local location"""
 	#Create the directory for the local file if it doesn't already exist
 	CreateDirectory(localfilepath)
-	print(localfilepath,serverfilepath)
 	#Does the file already exist with a size > 0
 	if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
 		while True:

@@ -8,7 +8,7 @@ import argparse
 
 #MY IMPORTS
 from misc import TurnDebugOn,CreateDirectory
-from danbooru import SubmitRequest,JoinArgs,GetArgUrl2,GetCurrFilePath,GetServFilePath,DownloadPostFile
+from danbooru import SubmitRequest,JoinArgs,GetArgUrl2,GetCurrFilePath,GetServFilePath,DownloadPostImage
 
 #LOCAL GLOBALS
 
@@ -31,7 +31,7 @@ def main(args):
 		
 		for y in range(0,len(postlist)):
 			#Download from server to local
-			DownloadPostFile(postlist[y])
+			DownloadPostImage(postlist[y])
 			
 			#Are we downloading all child/parent posts?
 			if args.related and (postlist[y]['has_visible_children'] or postlist[y]['parent_id'] != None):
@@ -54,7 +54,7 @@ def getrelatedposts(postdict,alreadydownloaded):
 	#Download any parent posts
 	if (postdict['parent_id'] != None) and (postdict['parent_id'] not in alreadydownloaded):
 		parentdict = SubmitRequest('show','posts',id=postdict['parent_id'])
-		DownloadPostFile(parentdict)
+		DownloadPostImage(parentdict)
 		alreadydownloaded += [parentdict['id']]
 		alreadydownloaded = getrelatedposts(parentdict,alreadydownloaded)
 	
@@ -63,7 +63,7 @@ def getrelatedposts(postdict,alreadydownloaded):
 		childdict = SubmitRequest('list','posts',urladdons="&tags=parent:%d" % postdict['id'])
 		for i in range(0,len(childdict)):
 			if childdict[i]['id'] not in alreadydownloaded:
-				DownloadPostFile(childdict[i])
+				DownloadPostImage(childdict[i])
 				alreadydownloaded += [childdict[i]['id']]
 				alreadydownloaded = getrelatedposts(childdict[i],alreadydownloaded)
 	
