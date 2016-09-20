@@ -326,8 +326,8 @@ def constructtable(typename,ordereddict,usernamedict,datadict,usertagdict,tables
 				string += '(' + tag + ',' + str(usertagdict[key][tag]) + ') '
 				j += 1
 		else:
-			for val in ordereddict[key]:
-				string += "[/th]\r\n[th]" + ((str(val)).replace('(','')).replace(')','')
+			for i in range(1,len(ordereddict[key])):
+				string += "[/th]\r\n[th]" + ((str(ordereddict[key][i])).replace('(','')).replace(')','')
 		#End this row
 		string += "[/th]\r\n[/tr]\r\n"
 		
