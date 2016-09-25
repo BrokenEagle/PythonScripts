@@ -151,14 +151,17 @@ def MakeUnicodePrintable(string):
 def GetCurrentTime():
 	return time.time()
 
-def HasMonthPassed(starttime,endtime):
-	return (((starttime - endtime)/(60*60*24*30)) > 1.0)
+def HasMonthPassed(starttime,endtime,num=1):
+	return (((starttime - endtime)/(60*60*24*30*num)) > 1.0)
 
-def HasDayPassed(starttime,endtime):
-	return (((starttime - endtime)/(60*60*24)) > 1.0)
+def HasWeekPassed(starttime,endtime,num=1):
+	return (((starttime - endtime)/(60*60*24*7*num)) > 1.0)
 
-def HasHourPassed(starttime,endtime):
-	return (((starttime - endtime)/(60*60)) > 1.0)
+def HasDayPassed(starttime,endtime,num=1):
+	return (((starttime - endtime)/(60*60*24*num)) > 1.0)
+
+def HasHourPassed(starttime,endtime,num=1):
+	return (((starttime - endtime)/(60*60*num)) > 1.0)
 
 def WithinOneSecond(starttime,endtime):
 	return ((abs(starttime-endtime)) < 1.0)
@@ -166,8 +169,14 @@ def WithinOneSecond(starttime,endtime):
 def DaysToSeconds(intime):
 	return (intime * 60*60*24)
 
+def HoursToSeconds(intime):
+	return (intime * 60*60)
+
 def SecondsToDays(intime):
 	return intime / (60*60*24)
+
+def SecondsToHours(intime):
+	return intime / (60*60)
 
 def AddDays(timestring,days):
 	return time.strftime("%Y-%m-%d",(time.gmtime(time.mktime(time.strptime(timestring,"%Y-%m-%d"))+DaysToSeconds(days))))
