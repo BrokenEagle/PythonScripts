@@ -18,8 +18,10 @@ from myglobal import username,apikey,workingdirectory,imagefilepath
 
 #LOCAL GLOBALS
 
-dateregex = '^[0-9]{4,4}-[0-9]{2,2}-[0-9]{2,2}$'
-idregex = '(\\d+)\.\.(\\d+)'
+dateregex = '^([0-9]{4}-[0-9]{2}-[0-9]{2})?(\\.\\.)?([0-9]{4}-[0-9]{2}-[0-9]{2})?$'
+idregex = '^(\\d+)?(\\.\\.)?(\\d+)?$'
+ageregex = '^([0-9]*)([dhimoswy]*)?(\\.\\.)?([0-9]*)?([dhimoswy]*)$'
+agetypedict = {'s':1,'mi':60,'h':60*60,'d':60*60*24,'w':60*60*24*7,'mo':60*60*24*30,'y':60*60*24*365}
 
 #The following are needed to properly evaluate the JSON responses from Danbooru
 null = None
@@ -32,7 +34,7 @@ danbooru_auth = '?login=%s&api_key=%s'
 
 #For building Danbooru URL's and methods on the fly based on the operation type
 #Only list, create, show, update, delete and count have been tested
-danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('%d/undelete.json','POST'),'create_or_update':('create_or_update.json','POST'),'count':('counts/posts.json','GET')}
+danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('create_or_update.json','POST'),'count':('counts/posts.json','GET')}
 
 #CLASSES
 
@@ -174,6 +176,11 @@ def DateStringInput(string):
 	match = re.match(dateregex,string)
 	if match == None:
 		raise argparse.ArgumentTypeError("Date input must be of format 'YYYY-MM-DD'")
+	if (match.group(1) == None) and (match.group(3) == None):
+		raise argparse.ArgumentTypeError("At least one date must be included")
+	if (match.group(1) != None) and (match.group(3) != None):
+		if time.strptime(match.group(1),'%Y-%m-%d') > time.strptime(match.group(3),'%Y-%m-%d'):
+			raise argparse.ArgumentTypeError("1st date must be before 2nd date")
 	return match.group()
 
 def IDStringInput(string):
@@ -184,6 +191,25 @@ def IDStringInput(string):
 	end = int(match.group(2))
 	if start > end:
 		raise argparse.ArgumentTypeError("Start ID must be less than End ID")
+	return match.group()
+
+def AgeStringInput(string):
+	match = re.match(ageregex,string)
+	if match == None:
+		raise argparse.ArgumentTypeError("Age input must be of format 'Start..End'\nValid qualifiers are 's','mi','h','d','w','mo','y'")
+	if match.group(1) == match.group(2) == match.group(4) == match.group(5) == '':
+		raise argparse.ArgumentTypeError("At least one age specifier must be used")
+	if (match.group(1) == "" and match.group(2) != "") or \
+		(match.group(2) == "" and match.group(1) != "") or \
+		(match.group(4) == "" and match.group(5) != "") or \
+		(match.group(5) == "" and match.group(4) != ""):
+		raise argparse.ArgumentTypeError("Specificers must include both a number and type")
+	if ((match.group(2) != "") and (match.group(2) not in agetypedict)) or \
+		((match.group(5) != "") and (match.group(5) not in agetypedict)):
+		raise argparse.ArgumentTypeError("Invalid specifier type")
+	if ((match.group(1) != "") and (match.group(4) != "")) and \
+		(int(match.group(1)) * agetypedict[match.group(2)]) > (int(match.group(4)) * agetypedict[match.group(5)]):
+		raise argparse.ArgumentTypeError("Start specifier must be less than end specifier")
 	return match.group()
 
 def HasChild(postdict):
