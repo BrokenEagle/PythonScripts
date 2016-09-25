@@ -129,6 +129,38 @@ def DownloadPostImage(postdict,size="medium"):
 	DebugPrintInput(localfilepath,serverfilepath)
 	return DownloadFile(localfilepath,serverfilepath)
 
+#Loop constructs
+
+def IDPageLoop(type,dostuff,limit,addonlist=[],inputs=[],maxid=[]):
+	"""Standard loop using 'ID' pages to iterate
+	'maxid' is for types that require the pageID to sort properly, e.g. forum topics
+	"""
+	urladd = JoinArgs(GetArgUrl2('limit',limit),*maxid,*addonlist)
+	while True:
+		typelist = SubmitRequest('list',type,urladdons=urladd)
+		if len(typelist) == 0:
+			break
+		for item in typelist:
+			currentid = item['id']
+			if dostuff(item,*inputs) < 0:
+				return
+		urladd = JoinArgs(GetArgUrl2('limit',limit),GetPageUrl(currentid),*addonlist)
+		print(':', end="", flush=True)
+
+def NumPageLoop(type,dostuff,limit,addonlist=[],inputs=[]):
+	"""Standard loop using page numbers to iterate"""
+	page = 1
+	while True:
+		urladd = JoinArgs(GetArgUrl2('limit',limit),GetArgUrl2('page',page),*addonlist)
+		typelist = SubmitRequest('list',type,urladdons=urladd)
+		if len(typelist) == 0:
+			return
+		for item in typelist:
+			if dostuff(item,*inputs) < 0:
+				return
+		page += 1
+		print(':', end="", flush=True)
+
 #EXTERNAL HELPER FUNCTIONS
 
 def JoinArgs(*args):
