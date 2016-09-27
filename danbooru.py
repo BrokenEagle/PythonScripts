@@ -3,7 +3,6 @@
 #Include functions related to Danbooru here
 
 #PYTHON IMPORTS
-import os
 import re
 import sys
 import time
@@ -33,7 +32,7 @@ danbooru_domain = 'http://danbooru.donmai.us'
 danbooru_auth = '?login=%s&api_key=%s'
 
 #For building Danbooru URL's and methods on the fly based on the operation type
-#Only list, create, show, update, delete and count have been tested
+#Only list, create, show, update, delete, revert, undo and count have been tested
 danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('create_or_update.json','POST'),'count':('counts/posts.json','GET')}
 
 #CLASSES
@@ -129,9 +128,13 @@ def DownloadPostImage(postdict,size="medium"):
 	DebugPrintInput(localfilepath,serverfilepath)
 	return DownloadFile(localfilepath,serverfilepath)
 
-#Loop constructs
+def GetPostCount(searchtags):
+	urladd = JoinArgs(GetArgUrl2('tags',searchtags))
+	return SubmitRequest('count','',urladdons=urladd)['counts']['posts']
 
-def IDPageLoop(type,dostuff,limit,addonlist=[],inputs=[],maxid=[]):
+#LOOP CONSTRUCTS
+
+def IDPageLoop(type,dostuff,limit,addonlist=[],inputs={},maxid=[]):
 	"""Standard loop using 'ID' pages to iterate
 	'maxid' is for types that require the pageID to sort properly, e.g. forum topics
 	"""
@@ -142,24 +145,46 @@ def IDPageLoop(type,dostuff,limit,addonlist=[],inputs=[],maxid=[]):
 			break
 		for item in typelist:
 			currentid = item['id']
-			if dostuff(item,*inputs) < 0:
+			if dostuff(item,**inputs) < 0:
 				return
 		urladd = JoinArgs(GetArgUrl2('limit',limit),GetPageUrl(currentid),*addonlist)
 		print(':', end="", flush=True)
 
-def NumPageLoop(type,dostuff,limit,addonlist=[],inputs=[]):
+def NumPageLoop(type,dostuff,limit,addonlist=[],inputs={}):
 	"""Standard loop using page numbers to iterate"""
-	page = 1
+	
+	idseen = []; page = 1
 	while True:
 		urladd = JoinArgs(GetArgUrl2('limit',limit),GetArgUrl2('page',page),*addonlist)
 		typelist = SubmitRequest('list',type,urladdons=urladd)
 		if len(typelist) == 0:
 			return
+		idlist = []
 		for item in typelist:
-			if dostuff(item,*inputs) < 0:
+			if item['id'] in idseen:
+				continue
+			idlist += [item['id']]
+			if dostuff(item,**inputs) < 0:
 				return
-		page += 1
+		idseen = idlist; page += 1
 		print(':', end="", flush=True)
+
+#LOOP ITERABLES
+
+def DownloadPostImageIteration(post,related=False,size="medium"):
+	"""To be called with loop construct to download images"""
+	
+	#Download post image from server to local
+	DownloadPostImage(post,size)
+	
+	#Are we downloading all child/parent posts?
+	if related and (HasChild(post) or HasParent(post)):
+		totaldownloaded = len(DownloadRelatedPostImages(post,post['id']))
+		print("(R%d)" % totaldownloaded,end="",flush=True)
+	
+	#Print some feedback
+	print('.', end="", flush=True)
+	return 0
 
 #EXTERNAL HELPER FUNCTIONS
 
