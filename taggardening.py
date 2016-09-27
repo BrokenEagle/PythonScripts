@@ -10,15 +10,15 @@ from subprocess import Popen, CREATE_NEW_CONSOLE
 
 #MY IMPORTS
 from misc import TurnDebugOn
-from danbooru import SubmitRequest,JoinArgs,GetArgUrl2,GetCurrFilePath,EncodeData,IDStringInput,DateStringInput
+from danbooru import SubmitRequest,IDPageLoop,DownloadPostImageIteration,GetPostCount,JoinArgs,\
+					GetArgUrl2,GetCurrFilePath,EncodeData,IDStringInput,DateStringInput
 from keyoutput import AltTab
 
 #LOCAL GLOBALS
-bannerstring="Page (%d/%d): #%d/%d <post #%d>"
+bannerstring="Post (%d/%d): <post #%d>"
 menustring="[%s]Small [%s]Medium [%s]Large [%s]Huge [%s]Gigantic \n[%s]Flat Chest [%s]Remove"
 breastsimpstr = ['backboob', 'bouncing_breasts', 'breast_rest', 'breasts_on_head', 'carried_breast_rest', 'breasts_apart', 'breasts_outside', 'breast_squeeze', 'bursting_breasts', 'cleavage', 'cum_on_breasts', 'floating_breasts', 'gigantic_breasts', 'hanging_breasts', 'huge_breasts', 'large_breasts', 'medium_breasts', 'perky_breasts', 'sagging_breasts', 'sideboob', 'small_breasts', 'unaligned_breasts', 'underboob']
 searchtags = 'breasts -small_breasts -medium_breasts -large_breasts -huge_breasts -gigantic_breasts'
-pagelimit = 100
 
 def setbreastimplications(tag_str):
 	"""Set array according to found breasts implications"""
@@ -50,7 +50,7 @@ def setmenutuple(array):
 		else: menu += (' ',)
 	return menu
 
-def getuserkeypresses(postid,tag_string,*pageinfo):
+def getuserkeypresses(postid,tag_string,*currpos):
 	"""Display a menu and get user input"""
 	
 	breastsarray = [0] * 7
@@ -66,7 +66,7 @@ def getuserkeypresses(postid,tag_string,*pageinfo):
 		
 		if redraw:
 			temp = os.system('cls')
-			print(bannerstring % (pageinfo + (postid,)))
+			print(bannerstring % (currpos + (postid,)))
 			print(menustring % setmenutuple(breastsarray))
 			print("Breast Implications:")
 			breastimplications = setbreastimplications(tag_string)
@@ -77,7 +77,7 @@ def getuserkeypresses(postid,tag_string,*pageinfo):
 		if keypress == b'\r':
 			break
 		if keypress == b'\x1b':
-			sys.exit()
+			sys.exit(0)
 		if keypress.lower() == b'1':
 			breastsarray[0] = breastsarray[0] ^ 1
 			breastsarray[6] = 0
@@ -126,65 +126,66 @@ def getuserkeypresses(postid,tag_string,*pageinfo):
 	
 	return tagsadded
 
+def taggardenpost(post,currpos,beginning):
+	currfile = GetCurrFilePath(post)
+	print("Checking file",currfile)
+	while (not os.path.exists(currfile)) or ((os.stat(currfile)).st_size == 0):
+		print('.', end="", flush=True)
+		time.sleep(1)
+	
+	#Start the downloaded file with its default viewer
+	temp = os.startfile(currfile)
+	
+	#Configurable Alt Tab: gets back screen focus
+	AltTab(1.5,0.1,1+beginning[0]) 
+	beginning[0] = 0
+	
+	#Get user input for tagging
+	tagsadded = getuserkeypresses(post["id"],post["tag_string"],*currpos)
+	
+	#Now update the post
+	putdata = EncodeData('post','tag_string',post["tag_string"] + ' ' + ' '.join(tagsadded))
+	response = SubmitRequest('update','posts',id=post["id"],senddata=putdata)
+	
+	currpos[0] += 1
+	return 0
 
 def main(args):
 	global searchtags
 	#TurnDebugOn('danbooru')
+	
+	if args.download:
+		if len(args.tags) == 0:
+			sys.exit(-1)
+		IDPageLoop('posts',DownloadPostImageIteration,100,addonlist=[GetArgUrl2('tags',args.tags)])
+		return 0
 	
 	if args.date != None:
 		searchtags += " date:" + args.date
 	else:
 		searchtags += " id:" + args.id
 	
-	beginning=0
+	loopinput = {'beginning':[0]}
 	if not args.nodownload:
 		#Start downloader in new console so images can be downloaded in the background
-		beginning=1
-		p = Popen(['cmd','/c','start','/min',sys.executable,'postdownloader.py',searchtags],creationflags=CREATE_NEW_CONSOLE)
-
-	#Get the page count for tagging
-	tagsurl = GetArgUrl2('tags',searchtags)
-	urladd = JoinArgs(tagsurl)
-	countrequest = SubmitRequest('count','',urladdons=urladd)
-	totalpages = ((countrequest['counts']['posts']-1)//pagelimit) + 1
+		loopinput['beginning'] = [1]
+		p = Popen(['cmd','/c','start','/min',sys.executable,sys.argv[0],'--tags',searchtags,'--download'],creationflags=CREATE_NEW_CONSOLE)
 	
-	for x in range(0,totalpages):
-		#Start in reverse order since adding/removing tags will affect post queries
-		urladd = JoinArgs(tagsurl,GetArgUrl2('page',totalpages-x))
-		postlist = SubmitRequest('list','posts',urladdons=urladd)
-		
-		for y in range(0,len(postlist)):
-			
-			#Check to see that postdownloader.py has already downloaded the file
-			currfile = GetCurrFilePath(postlist[y])
-			print("Checking file",currfile)
-			while (not os.path.exists(currfile)) or ((os.stat(currfile)).st_size == 0):
-					print('.', end="", flush=True)
-					time.sleep(1)
-			
-			#Start the downloaded file with its default viewer
-			temp = os.startfile(currfile)
-			
-			#Configurable Alt Tab: gets back screen focus
-			AltTab(1.5,0.1,1+beginning) 
-			beginning=0
-			
-			#Get user input for tagging
-			pageinfo = (totalpages - x,totalpages,y+1,len(postlist))
-			tagsadded = getuserkeypresses(postlist[y]["id"],postlist[y]["tag_string"],*pageinfo)
-			
-			#Now update the post
-			putdata = EncodeData('post','tag_string',postlist[y]["tag_string"] + ' ' + ' '.join(tagsadded))
-			response = SubmitRequest('update','posts',id=postlist[y]["id"],senddata=putdata)
+	#Get the total count for tagging
+	loopinput['currpos'] = [1,GetPostCount(searchtags)]
 	
+	#Execute main loop
+	IDPageLoop('posts',taggardenpost,100,addonlist=[GetArgUrl2('tags',searchtags)],inputs=loopinput)
 	print("Done!")
 
 if __name__ == '__main__':
 	parser = ArgumentParser(description="Tag Images From Danbooru")
-	group = parser.add_mutually_exclusive_group(required=True)
+	group = parser.add_mutually_exclusive_group(required=False)
 	group.add_argument('-d','--date',type=DateStringInput,help="Date of images to tag",)
 	group.add_argument('-i','--id',type=IDStringInput,help="ID's of images to tag")
+	group.add_argument('--tags',required=False,default='')
 	parser.add_argument('--nodownload',required=False,action="store_true",default=False)
+	parser.add_argument('--download',required=False,action="store_true",default=False)
 	args = parser.parse_args()
 	
 	main(args)
