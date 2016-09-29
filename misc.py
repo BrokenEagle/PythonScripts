@@ -3,7 +3,6 @@
 
 #PYTHON IMPORTS
 import inspect
-import argparse
 import re
 import os
 import sys
@@ -18,25 +17,8 @@ debugModule = {}
 
 #General functions
 
-def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
-	"""Remove duplicates found in a list with an optional transformation and sorting"""
-	output = []
-	seen = []
-	
-	#Only useful if a transformation is also applied
-	if sort != None:
-		values = sorted(values, key=sort, reverse=reverse)
-	
-	valuesprime = values
-	if transform != None:
-		valuesprime = list(map(transform,values))
-	
-	for i in range(0,len(valuesprime)):
-		if valuesprime[i] not in seen:
-			output.append(values[i])
-			seen.append(valuesprime[i])
-	
-	return output
+def BlankFunction(*args,**kwargs):
+	pass
 
 def GetCallerModule(level):
 	caller = inspect.currentframe()
@@ -60,6 +42,54 @@ def AbortRetryFail(*args):
 			return True
 		if keyinput.lower() == 'f':
 			sys.exit(-1)
+
+#List functions
+
+def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
+	"""Remove duplicates found in a list with an optional transformation and sorting"""
+	output = []
+	seen = []
+	
+	#Only useful if a transformation is also applied
+	if sort != None:
+		values = sorted(values, key=sort, reverse=reverse)
+	
+	valuesprime = values
+	if transform != None:
+		valuesprime = list(map(transform,values))
+	
+	for i in range(0,len(valuesprime)):
+		if valuesprime[i] not in seen:
+			output.append(values[i])
+			seen.append(valuesprime[i])
+	
+	return output
+
+def GetOrderedIntersection(lista,listb):
+	"""Return the intersection of lista/listb with lista's order"""
+	
+	diff = list(set(lista).difference(listb))
+	templist = lista.copy()
+	for i in range(0,len(diff)):
+		temp = templist.pop(templist.index(diff[i]))
+	return templist
+
+def IsOrderChange(prelist,postlist):
+	"""Disregarding adds/removes, are the elements of prelist/postlist in the same order"""
+	
+	prelistprime = GetOrderedIntersection(prelist,postlist)
+	postlistprime = GetOrderedIntersection(postlist,prelist)
+	return not(prelistprime == postlistprime)
+
+def IsAddItem(prelist,postlist):
+	"""Has an element been added between pre/post list"""
+	
+	return len(set(postlist).difference(prelist)) > 0
+
+def IsRemoveItem(prelist,postlist):
+	"""Has an element been removed between pre/post list"""
+	
+	return len(set(prelist).difference(postlist)) > 0
 
 #IO/String functions
 
@@ -93,6 +123,10 @@ def DownloadFile(localfilepath,serverfilepath):
 						return -1
 				else:
 					return 0
+
+def TouchFile(fname, times=None):
+	with open(fname, 'a'):
+		os.utime(fname, times)
 
 def GetDirectory(filepath):
 	return filepath[:filepath.rfind('\\')]
@@ -194,16 +228,16 @@ def TurnDebugOff(modulename=None):
 		modulename = GetCallerModule(2).f_globals['__name__']
 	temp = debugModule.pop(modulename)
 
-def DebugPrintInput(*args):
+def DebugPrintInput(*args,**kwargs):
 	if GetCallerModule(2).f_globals['__name__'] in debugModule:
-		print(*args)
+		print(*args,**kwargs)
 		input()
 
-def DebugPrint(*args):
+def DebugPrint(*args,**kwargs):
 	if GetCallerModule(2).f_globals['__name__'] in debugModule:
-		print(*args)
+		print(*args,**kwargs)
 
-def SafePrint(*args):
+def SafePrint(*args,**kwargs):
 	temp = ''
 	for arg in args:
 		if type(arg) == type(''):
@@ -211,5 +245,5 @@ def SafePrint(*args):
 		else:
 			temp += repr(arg) + ' '
 	temp.strip()
-	print(temp.encode('ascii','replace').decode())
+	print(temp.encode('ascii','replace').decode(),**kwargs)
 	return temp
