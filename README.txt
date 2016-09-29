@@ -18,10 +18,7 @@
 	b. dtexttable.py - 	Create a Danbooru DText table from the data collected by userreport.py
 				End product is a TXT file.
 
-	c. taggardening.py - 	Interactive tagging on Danbooru for a given Date or ID range
-	
-	d. postdownloader.py -	Download all medium-sized images from Danbooru for a given tag search query
-		
+	c. taggardening.py - 	Interactive tagging on Danbooru for a given Date or ID range		
 
 4. Other Files
 
@@ -59,11 +56,10 @@ a. userreport.py
 
 b. taggardening.py
 
-	The program uses the systems native file opener, which for the system of development was IrfanView for JPG/PNG, 
-	Internet Explorer for GIF, and Media Player Classic for WEBM.
+	The program uses the systems native file opener, which for the system of development was IrfanView
+	for JPG/PNG, Internet Explorer for GIF, and Media Player Classic for WEBM.
 	
-	The program sends an Alt+Tab (which is configurable) to the system to gain back focus after opening up the file.
-	
-	The current hotkeys are 1-5, 'r', 'x', Enter, and Escape.
+	The program sends an Alt+Tab (which is configurable) to the system to gain back focus after opening
+	up the file. The current hotkeys are 1-5, 'r', 'x', Enter, and Escape.
 	
 	Use involved having the console window on the right of the screen and the file opener on the left side.
