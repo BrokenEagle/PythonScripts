@@ -175,7 +175,7 @@ def main(args):
 	loopinput['currpos'] = [1,GetPostCount(searchtags)]
 	
 	#Execute main loop
-	IDPageLoop('posts',taggardenpost,100,addonlist=[GetArgUrl2('tags',searchtags)],inputs=loopinput)
+	IDPageLoop('posts',100,taggardenpost,addonlist=[GetArgUrl2('tags',searchtags)],inputs=loopinput)
 	print("Done!")
 
 if __name__ == '__main__':

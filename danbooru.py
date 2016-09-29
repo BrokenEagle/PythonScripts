@@ -12,7 +12,7 @@ import urllib.request
 import urllib.parse
 
 #MY IMPORTS
-from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile
+from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction
 from myglobal import username,apikey,workingdirectory,imagefilepath
 
 #LOCAL GLOBALS
@@ -21,6 +21,7 @@ dateregex = '^([0-9]{4}-[0-9]{2}-[0-9]{2})?(\\.\\.)?([0-9]{4}-[0-9]{2}-[0-9]{2})
 idregex = '^(\\d+)?(\\.\\.)?(\\d+)?$'
 ageregex = '^([0-9]*)([dhimoswy]*)?(\\.\\.)?([0-9]*)?([dhimoswy]*)$'
 agetypedict = {'s':1,'mi':60,'h':60*60,'d':60*60*24,'w':60*60*24*7,'mo':60*60*24*30,'y':60*60*24*365}
+disregardtags = ['tagme','commentary','check_commentary','translated','partially_translated','check_translation','annotated','partially_annotated','check_my_note','check_pixiv_source']
 
 #The following are needed to properly evaluate the JSON responses from Danbooru
 null = None
@@ -34,12 +35,6 @@ danbooru_auth = '?login=%s&api_key=%s'
 #For building Danbooru URL's and methods on the fly based on the operation type
 #Only list, create, show, update, delete, revert, undo and count have been tested
 danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('create_or_update.json','POST'),'count':('counts/posts.json','GET')}
-
-#CLASSES
-
-class DanbooruError(Exception):
-    """Base class for exceptions in this module. (Currently unused)"""
-    pass
 
 #EXTERNAL FUNCTIONS
 
@@ -134,38 +129,42 @@ def GetPostCount(searchtags):
 
 #LOOP CONSTRUCTS
 
-def IDPageLoop(type,dostuff,limit,addonlist=[],inputs={},maxid=[]):
+def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction):
 	"""Standard loop using 'ID' pages to iterate
-	'maxid' is for types that require the pageID to sort properly, e.g. forum topics
+	'firstloop' is for types that require the pageID to sort properly, e.g. forum topics,
+	or for continuing from the last saved location, such as in the case of a crash
 	"""
-	urladd = JoinArgs(GetArgUrl2('limit',limit),*maxid,*addonlist)
+	currentid = -1
+	urladd = JoinArgs(GetLimitUrl(limit),*firstloop,*addonlist)
 	while True:
 		typelist = SubmitRequest('list',type,urladdons=urladd)
 		if len(typelist) == 0:
-			break
+			return currentid
 		for item in typelist:
 			currentid = item['id']
-			if dostuff(item,**inputs) < 0:
-				return
-		urladd = JoinArgs(GetArgUrl2('limit',limit),GetPageUrl(currentid),*addonlist)
+			if iteration(item,**inputs) < 0:
+				return currentid
+		postprocess(typelist,**inputs)
+		urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid),*addonlist)
 		print(':', end="", flush=True)
 
-def NumPageLoop(type,dostuff,limit,addonlist=[],inputs={}):
+def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=BlankFunction):
 	"""Standard loop using page numbers to iterate"""
 	
-	idseen = []; page = 1
+	idseen = []
 	while True:
-		urladd = JoinArgs(GetArgUrl2('limit',limit),GetArgUrl2('page',page),*addonlist)
+		urladd = JoinArgs(GetLimitUrl(limit),GetPageNumUrl(page),*addonlist)
 		typelist = SubmitRequest('list',type,urladdons=urladd)
 		if len(typelist) == 0:
-			return
+			return page
 		idlist = []
 		for item in typelist:
 			if item['id'] in idseen:
 				continue
 			idlist += [item['id']]
-			if dostuff(item,**inputs) < 0:
-				return
+			if iteration(item,**inputs) < 0:
+				return page
+		postprocess(typelist,**inputs)
 		idseen = idlist; page += 1
 		print(':', end="", flush=True)
 
@@ -212,7 +211,16 @@ def GetArgUrl3(typename,keyname,data):
 
 def GetPageUrl(id):
 	"""Get the page argument for all ID's below the parameter 'id'"""
-	return GetArgUrl('page','','b'+str(id))
+	return GetArgUrl2('page','b'+str(id))
+
+def GetLimitUrl(limit):
+	return GetArgUrl2('limit',limit)
+
+def GetPageNumUrl(pagenum):
+	return GetArgUrl2('page',pagenum)
+
+def GetSearchUrl(keyname,data):
+	return GetArgUrl3('search',keyname,data)
 
 def EncodeData(typename,keyname,data):
 	"""Encode data for the senddata parameter of SubmitRequest."""
@@ -269,6 +277,11 @@ def AgeStringInput(string):
 		raise argparse.ArgumentTypeError("Start specifier must be less than end specifier")
 	return match.group()
 
+#POST SPECIFIC FUNCTIONS
+
+def IsUpload(postdict):
+	return (len(postdict['unchanged_tags']) == 0) and (len(postdict['added_tags']) > 0)
+
 def HasChild(postdict):
 	return postdict['has_visible_children']
 
@@ -278,6 +291,39 @@ def HasParent(postdict):
 def HasRelated(postdict):
 	return (HasParent(postdict) or HasChild(postdict))
 
+def MetatagExists(string):
+	return (ParentExists(string) or SourceExists(string) or RatingExists(string))
+
+def ParentExists(string):
+	return ((string.find("parent:")) >= 0)
+
+def SourceExists(string):
+	return ((string.find("source:")) >= 0)
+
+def RatingExists(string):
+	return ((string.find("rating:")) >= 0)
+
+#TAG SPECIFIC FUNCTIONS
+
+def GetTagCategory(tagname):
+	"""Query danbooru for the category of a tag"""
+	
+	#Send tag query to Danbooru
+	urladd = JoinArgs(GetSearchUrl('name',tagname))
+	taglist = SubmitRequest('list','tags',urladdons = urladd)
+	
+	#If the length of the list is one, then we found an exact match
+	if len(taglist) == 1:
+		return taglist[0]['category']
+	
+	#Otherwise the tag doesn't exist or it's empty
+	DebugPrint("Empty Tag",tagname)
+	
+	#Return a nonexistant tag category enumeration for internal use only
+	return 2
+
+def IsDisregardTag(tagname):
+	return true if (tagname in disregardtags) or (tagname[-8:]=='_request') else False
 
 #INTERNAL HELPER FUNCTIONS
 
