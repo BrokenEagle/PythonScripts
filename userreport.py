@@ -5,18 +5,18 @@
 import os
 import csv
 import sys
-import argparse
+from argparse import ArgumentParser
 
 #LOCAL IMPORTS
 from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
-				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,\
+				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,IsAddItem,IsRemoveItem,IsOrderChange,\
 				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff
-from danbooru import SubmitRequest,JoinArgs,GetArgUrl,GetPageUrl,ProcessTimestamp
+from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,GetLimitUrl,GetSearchUrl,ProcessTimestamp,\
+					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload
 from myglobal import workingdirectory,datafilepath,csvfilepath
 
 #MODULE GLOBAL VARIABLES
 userdictfile = workingdirectory + datafilepath + '%suserdict.txt'
-usertagdictfile = workingdirectory + datafilepath + 'usertagdict.txt'
 csvfile = workingdirectory + csvfilepath + '%s.csv'
 tagdictfile = workingdirectory + "tagdict.txt"
 
@@ -25,13 +25,25 @@ nonversionedtypes = ['comment','forum_post','forum_topic','post_appeal','bulk_up
 validtypes = versionedtypes + nonversionedtypes
 typeextracolumns = {'post':14,'upload':13,'pool':5,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
 typelimits = {'post':400,'upload':200,'pool':50,'note':200,'artist_commentary':200,'artist':50,'wiki_page':50,'comment':200,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
-
-disregardtags = ['tagme','commentary','check_commentary','translated','partially_translated',\
-				'check_translation','annotated','partially_annotated','check_my_note','check_pixiv_source']
+typetableheaders = {
+	'post':['userid','total','parent','rating','source','+gentag','+chartag','+copytag','+arttag','+emptytag','-gentag','-chartag','-copytag','-arttag','-emptytag','other'],
+	'upload':['userid','total','modbypass','deleted','parent','source','safe','ques','expl','gentag','chartag','copytag','arttag','emptytag','obsolete'],
+	'note':['userid','total','create','edit','move','resize','delete','undelete','other'],
+	'artist_commentary':['userid','total','create','orig_title','orig_descr','trans_title','trans_descr','other'],
+	'pool':['userid','total','create','add','remove','order','other'],
+	'artist':['userid','total','create','name','other_name','url','group','delete','undelete','wiki','other'],
+	'wiki_page':['userid','total','create','title','other_names','body','other'],
+	'comment':['userid','total','update','bump','pos_count','neg_count','cum_score','delete'],
+	'forum_post':['userid','total','update'],
+	'forum_topic':['userid','total','response_count'],
+	'post_appeal':['userid','total','unsuccessful'],
+	'tag_alias':['userid','total','approved'],
+	'tag_implication':['userid','total','approved'],
+	'bulk_update_request':['userid','total','approved','rejected']
+	}
 tagtypedict = {'general':0,'character':4,'copyright':3,'artist':1}
 
 #MAIN function
-
 def main(args):
 	"""Main function; 
 	args: Instance of argparse.Namespace
@@ -47,49 +59,44 @@ def main(args):
 	
 	#Set variables according to the current category
 	typename = args.category
-	typelimit = typelimits[typename]
 	userdictfile = userdictfile % typename
 	csvfile = csvfile % typename
+	inputdict = {'typename':typename}
 	
 	#Check to see if we are starting new, or are resuming progress
 	if os.path.exists(userdictfile) and not (args.new):
-		startid,beginningid,starttime,userdict = PutGetData(userdictfile,'r')
+		print("Opening",userdictfile)
+		startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
 		
-		#Prepare for the first API call to Danbooru
-		urladd = (JoinArgs(GetArgUrl('limit','',typelimit),GetPageUrl(startid)))
+		#Continue from the last saved location
+		startid = [GetPageUrl(startid)]
 	else:
-		userdict = {}
-		starttime = GetCurrentTime()
-		beginningid = None
-	
-	#Prepare for the first API call to Danbooru
-	if (typename == 'forum_topic') or (typename == 'bulk_update_request') or \
-		(typename == 'tag_implication') or (typename == 'tag_alias'):
-		#Setting the page argument fixes ordering issues for the above categories
-		#It's set very high to prevent any actual instances from being above it
-		urladd=JoinArgs(GetArgUrl('limit','',typelimit),GetPageUrl(100000))
-	else:
-		urladd=JoinArgs(GetArgUrl('limit','',typelimit))
+		if (typename == 'forum_topic') or (typename == 'bulk_update_request') or \
+			(typename == 'tag_implication') or (typename == 'tag_alias'):
+			#Setting the page argument fixes ordering issues for the above categories
+			#It's set very high to prevent any actual instances from being above it
+			startid = [GetPageUrl(1000000)]
+		else:
+			startid = []
+		
+		inputdict['userdict'] = {}
+		inputdict['starttime'] = GetCurrentTime()
 	
 	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
-	if typename == 'post' or typename == 'upload':
-		if os.path.exists(tagdictfile):
-			tagdict = PutGetData(tagdictfile,'r')
-		else:
-			tagdict = {}
+	if (typename == 'post' or typename == 'upload') and os.path.exists(tagdictfile): 
+		print("Opening",tagdictfile)
+		inputdict['tagdict'] = PutGetData(tagdictfile,'r')
+	else: 
+		inputdict['tagdict'] = {}
 	
-	#Keep track of the tags added/removed
-	if typename=='post':
-		if (os.path.exists(usertagdictfile)) and (not (args.new)):
-			usertagdict = PutGetUnicode(usertagdictfile,'r')
-		else:
-			usertagdict = {}
-	
-	#For uploads, update tag dictionary with recent aliases to remove false tag errors
+	#Set the appropriate Danbooru controller that will handle all requests
 	if typename == 'upload':
 		#Check for new aliases and update tag dictionary
-		updatetagdictwaliases(starttime,tagdict)
-		PutGetData(tagdictfile,'w',tagdict)
+		print("Updating tag dictionary with new aliases")
+		#Tag aliases require sequential paging to list in the correct order
+		correctorder = [GetPageUrl(100000)]
+		IDPageLoop('tag_aliases',typelimits['tag_alias'],TagdictAliasIteration,firstloop=correctorder,inputs=inputdict)
+		PutGetData(tagdictfile,'w',inputdict['tagdict'])
 		#There is a category 'upload', but the data isn't as good as in 'post_versions'
 		controller = 'post_versions'
 	elif typename in versionedtypes:
@@ -99,201 +106,181 @@ def main(args):
 	elif typename in nonversionedtypes:
 		controller = '%ss' % typename
 	
-	#Set preloop variables
-	currentday = 0
-	currentid = 0
+	#Comments require an additional URL argument (otherwise, it'll return posts and not comments)
+	if typename == 'comment':
+		urladds = [GetArgUrl2('group_by',typename)]
+	else:
+		urladds = []
 	
-	#Process through a month's worth of instances
-	while True:
-		#Comments require an additional URL argument (otherwise, it'll return posts and not comments)
-		if typename == 'comment':
-			urladd = urladd + '&' + GetArgUrl('group_by','',typename)
-		
-		#Send API request to Danbooru; response will be an indexed list of dictionaries
-		typelist = SubmitRequest('list',controller,urladdons=urladd)
-		
-		#Initialize beginningid if we're starting anew
-		if (beginningid == None) and (len(typelist)>0): beginningid = typelist[0]['id']
-		
-		#Iterate through and process each instance
-		for i in range(0,len(typelist)):
-			
-			#Initialize some loop variables according to type
-			currentid = typelist[i]['id']
-			if typename in versionedtypes:
-				currenttime = ProcessTimestamp(typelist[i]['updated_at'])
-				userid = typelist[i]['updater_id']
-			elif typename in nonversionedtypes:
-				currenttime = ProcessTimestamp(typelist[i]['created_at'])
-				if typename == 'bulk_update_request':
-					userid = typelist[i]['user_id']
-				else:
-					userid = typelist[i]['creator_id']
-			
-			#For post changes, skip all post changes that are uploads
-			if typename == 'post' and (isupload(typelist[i])):
-				continue
-			
-			#For uploads, skip all post changes that aren't uploads
-			if typename == 'upload' and not (isupload(typelist[i])):
-				continue
-			
-			#FOR loop exit condition
-			if HasMonthPassed(starttime,currenttime):
-				break
-			
-			#For each instance found, update user Totals column count
-			if userid not in userdict:
-				userdict[userid] = [1] + [0]*typeextracolumns[typename]
-			else:
-				userdict[userid][0] += 1
-			
-			#Go to each types's handler function to process more data
-			if typename=='post':
-				updatepostdata(userid,userdict,typelist[i],tagdict,usertagdict)
-			elif typename=='upload':
-				updateuploaddata(userid,userdict,typelist[i],tagdict)
-			elif typename=='comment':
-				updatecommentdata(userid,userdict,typelist[i])
-			elif typename=='forum_post':
-				updateforumpostdata(userid,userdict,typelist[i])
-			elif typename=='forum_topic':
-				updateforumtopicdata(userid,userdict,typelist[i])
-			elif typename=='post_flag' or typename=='post_appeal':
-				updatepostappealdata(userid,userdict,typelist[i])
-			elif typename=='bulk_update_request':
-				updatebulkupdaterequestdata(userid,userdict,typelist[i])
-			elif (typename == 'tag_alias') or (typename == 'tag_implication'):
-				updatetagaliasimplicationdata(userid,userdict,typelist[i])
-			else:
-				updateextradata(userid,userdict,typelist[i],typename)
-		
-		#Save tag dictionary at this point for 'upload'
-		if typename == 'post' or typename=='upload':
-			#Tried several different checks for Unicode errors, but they still occurred :(
-			#This prevents the saved tag dictionary from being destroyed
-			try:
-				PutGetData('d:\\temp\\temp.txt','w',tagdict)
-			except UnicodeEncodeError as inst:
-				print(MakeUnicodePrintable(inst.object[inst.start-5:inst.end+5]))
-				input()
-			PutGetData(tagdictfile,'w',tagdict)
-		
-		if typename == 'post':
-			PutGetUnicode(usertagdictfile,'w',usertagdict)
-		
-		#Also save the user data at this point
-		PutGetData(userdictfile,'w',[currentid,beginningid,starttime,userdict])
-		
-		#WHILE loop exit condition
-		if HasMonthPassed(starttime,currenttime):
-			break
-		
-		#Print some screen feedback so we know where we're at
-		if HasDayPassed(starttime-currenttime,DaysToSeconds(currentday)):
-			currentday = int(SecondsToDays(starttime-currenttime))
-			print(currentday, end="", flush=True)
-		else:
-			print(':', end="", flush=True)
-		
-		#Get ready for the next API call to Danbooru
-		urladd = (JoinArgs(GetArgUrl('limit','',typelimit),GetPageUrl(currentid)))
+	#Set other preloop variables
+	inputdict['currentday'] = [0]
+	
+	#Execute main loop
+	print("Starting main loop...")
+	lastid = IDPageLoop(controller,typelimits[typename],UserReportIteration,addonlist=urladds,\
+							inputs=inputdict,firstloop=startid,postprocess=UserReportPostprocess)
+	
+	#Now that we're done, let's do one last final save
+	if typename == 'post' or typename=='upload':
+		PutGetData(tagdictfile,'w',inputdict['tagdict'])
+	PutGetData(userdictfile,'w',[lastid,inputdict['starttime'],inputdict['userdict']])
 	
 	#As a final act, also write a CSV file
 	with open(csvfile,'w',newline='') as outfile:
 		writer = csv.writer(outfile)
-		for key in userdict:
-			writer.writerow([key]+userdict[key])
+		writer.writerow(typetableheaders[typename])
+		for key in inputdict['userdict']:
+			writer.writerow([key]+inputdict['userdict'][key])
 	
 	print("\nDone!")
 
-#TAG FUNCTIONS
+#Loop functions
 
-def gettaginfo(tagname,postid):
-	"""Query danbooru for the category of a tag"""
+def UserReportIteration(item,typename,starttime,userdict,tagdict,**kwargs):
+	if typename in versionedtypes:
+		currenttime = ProcessTimestamp(item['updated_at'])
+		userid = item['updater_id']
+	elif typename in nonversionedtypes:
+		currenttime = ProcessTimestamp(item['created_at'])
+		if typename == 'bulk_update_request': userid = item['user_id']
+		else: userid = item['creator_id']
 	
-	#Check for unicode characters in the tagname
-	if FindUnicode(tagname) >= 0:
+	#For post changes, skip all post changes that are uploads
+	if typename == 'post' and (IsUpload(item)):
+		return 0
+	
+	#For uploads, skip all post changes that aren't uploads
+	if typename == 'upload' and not (IsUpload(item)):
+		return 0
+	
+	#Main exit condition
+	if HasMonthPassed(starttime,currenttime):
 		return -1
 	
-	#Prepare for tag query to Danbooru
-	urladd = JoinArgs(GetArgUrl('search','name',tagname))
+	#For each instance found, update user Totals column count
+	if userid not in userdict: 
+		userdict[userid] = [1] + [0]*typeextracolumns[typename]
+	else: 
+		userdict[userid][0] += 1
 	
-	#Send API request to Danbooru; response will be an indexed list of dictionaries
-	taglist = SubmitRequest('list','tags',urladdons = urladd)
-	
-	if len(taglist) == 1:
-		#If the length of the list is one, then we found an exact match
-		return taglist[0]['category']
+	#Go to each types's handler function to process more data
+	if typename=='post':
+		updatepostdata(userid,userdict,item,tagdict)
+	elif typename=='upload':
+		updateuploaddata(userid,userdict,item,tagdict)
+	elif typename=='comment':
+		updatecommentdata(userid,userdict,item)
+	elif typename=='forum_post':
+		updateforumpostdata(userid,userdict,item)
+	elif typename=='forum_topic':
+		updateforumtopicdata(userid,userdict,item)
+	elif typename=='post_flag' or typename=='post_appeal':
+		updatepostappealdata(userid,userdict,item)
+	elif typename=='bulk_update_request':
+		updatebulkupdaterequestdata(userid,userdict,item)
+	elif (typename == 'tag_alias') or (typename == 'tag_implication'):
+		updatetagaliasimplicationdata(userid,userdict,item)
 	else:
-		#Otherwise the tag doesn't exist or it's empty
-		DebugPrint("Tag Error2",tagname,postid)
+		updateextradata(userid,userdict,item,typename)
+	
+	return 0
+
+def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentday):
+	#Save tag dictionary at this point for 'upload'
+	if typename == 'post' or typename=='upload':
+		PutGetData(tagdictfile,'w',tagdict)
+	
+	#Also save the user data at this point
+	PutGetData(userdictfile,'w',[typelist[-1]['id'],starttime,userdict])
+	
+	#Print some extra screen feedback so we know where we're at
+	if typename in versionedtypes:
+		currenttime = ProcessTimestamp(typelist[-1]['updated_at'])
+	elif typename in nonversionedtypes:
+		currenttime = ProcessTimestamp(typelist[-1]['created_at'])
+	if HasDayPassed(starttime-currenttime,DaysToSeconds(currentday[0])):
+		currentday[0] = int(SecondsToDays(starttime-currenttime))
+		print(currentday[0], end="", flush=True)
+
+#TAG FUNCTIONS
+
+def TagdictAliasIteration(tagalias,starttime,tagdict,**kwargs):
+	"""Update tag dictionary with all tag aliases that went active during the user report period (1 Month)"""
+	
+	currenttime = ProcessTimestamp(tagalias['updated_at'])
+	
+	if (currenttime > starttime) or (tagalias['status']=='pending'):
+		return 0
+	
+	#Main exit condition
+	if HasMonthPassed(starttime,currenttime):
+		return -1
+	
+	#Check if the consequent name already exists in the Tag Dictionary
+	if tagalias['consequent_name'] in tagdict:
+		DebugPrint(tagalias['consequent_name'],'found in tagdict')
+		tagtype = tagdict[tagalias['consequent_name']]
+	else:
+		DebugPrint(tagalias['consequent_name'],'not found in tagdict')
 		
-		#Return a nonexistant tag category enumeration for internal use only
-		return 2
+		#If unicode is found, then document for later and continue
+		if FindUnicode(tagalias['consequent_name']) >= 0:
+			foundunicodeintag('tag alias',tagalias['id'])
+			return 0
+		
+		tagtype = GetTagCategory(tagalias['consequent_name'])
+	
+	#Update tag dictionary with tagtype info
+	tagdict[tagalias['antecedent_name']] = tagtype
+	
+	return 0
+
+def counttags(tagstring,tagdict,postid):
+	"""Count all the tags for each category"""
+	
+	tagcount = [0]*5
+	tagmiss = 0 #Used only for printing feedback
+	
+	for i in range(0,len(tagstring)):
+		
+		if MetatagExists(tagstring[i]):
+			continue
+		
+		if IsDisregardTag(tagstring[i]):
+			continue
+		
+		if (tagstring[i] in tagdict):
+			tagcount[tagdict[tagstring[i]]] += 1
+		else:
+			#If unicode is found, then document for later and continue
+			if FindUnicode(tagstring[i]) >= 0:
+				foundunicodeintag('post',postid)
+				continue
+			
+			tagmiss = 1 
+			returntag = GetTagCategory(tagstring[i])
+			tagdict[tagstring[i]] = returntag
+			tagcount[returntag] += 1
+			
+			#Print some feedback
+			DebugPrint(".",end="",flush=True)
+	
+	#Print some more feedback
+	if tagmiss == 1:
+		DebugPrint("T",end="",flush=True)
+	
+	return tagcount
 
 def foundunicodeintag(type,id):
 	"""Store where unicode tags were found for later investigation"""
 	with open(workingdirectory + 'unicode.txt','a') as f:
 		f.write("\nFound unicode in " + type + ' ' + str(id))
 
-def isdisregardtag(tagname):
-	if (tagname in disregardtags) or (tagname[-8:]=='_request'):
-		return True
-	return False
-
-def updatetagdictwaliases(starttime,tagdict):
-	"""Update the tag dictionary with all aliases created over the last month"""
-	
-	#The page argument must be used, or Danbooru won't sort them by ID number :(
-	#A very large ID number is used to guarantee that the most recent aliases will be returned
-	urladd = (JoinArgs(GetArgUrl('limit','',typelimits['tag_alias']),GetPageUrl(100000)))
-	
-	#Process through a month's worth of aliases
-	while True:
-		#Send API request to Danbooru; response will be an indexed list of dictionaries
-		tagaliaslist = SubmitRequest('list','tag_aliases',urladdons=urladd)
-		
-		#Iterate through and process each alias
-		for i in range(0,len(tagaliaslist)):
-			currenttime = ProcessTimestamp(tagaliaslist[i]['updated_at'])
-			
-			#If the alias went active after the current data collection started...
-			#... or if it's still a pending, then continue on
-			if (currenttime > starttime) or (tagaliaslist[i]['status']=='pending'):
-				continue
-			
-			currentid = tagaliaslist[i]['id']
-			
-			#Function exit condition
-			if HasMonthPassed(starttime,currenttime):
-				return
-			
-			#Check if the consequent name already exists in the Tag Dictionary
-			if tagaliaslist[i]['consequent_name'] in tagdict:
-				#If so, then just return it
-				DebugPrint(tagaliaslist[i]['consequent_name'],'found in tagdict')
-				tagtype = tagdict[tagaliaslist[i]['consequent_name']]
-			else:
-				#Otherwise, we need to query Danbooru
-				DebugPrint(tagaliaslist[i]['consequent_name'],'not found in tagdict')
-				tagtype = gettaginfo(tagaliaslist[i]['consequent_name'],0)
-				
-				#If unicode was found, then document for later and continue
-				if(tagtype < 0):
-					foundunicodeintag('tag alias',tagaliaslist[i]['id'])
-					continue
-			
-			#Update tag dictionary with tagtype info
-			tagdict[tagaliaslist[i]['antecedent_name']] = tagtype
-		
-		#Get ready for the next API call to Danbooru
-		urladd = JoinArgs(GetPageUrl(currentid),GetArgUrl('limit','',typelimits['tag_alias']))
-
 #POST SPECIFIC FUNCTIONS#
 
-def updatepostdata(userid,userdict,typeinfo,tagdict,usertagdict):
+def updatepostdata(userid,userdict,typeinfo,tagdict):
 	"""Update post columns for userid"""
+	
 	postid = typeinfo['post_id']
 	dirty = 0
 	if isparentchange(typeinfo):
@@ -316,7 +303,6 @@ def updatepostdata(userid,userdict,typeinfo,tagdict,usertagdict):
 	userdict[userid][7] += tagtypes[1]						#artist
 	userdict[userid][8] += tagtypes[2]						#empty
 	if any(tagtypes):
-		populateusertagdict(userid,typeinfo['added_tags'].split(),usertagdict)
 		DebugPrint("Tag Remove")
 		dirty = 1
 	
@@ -327,7 +313,6 @@ def updatepostdata(userid,userdict,typeinfo,tagdict,usertagdict):
 	userdict[userid][12] += tagtypes[1]						#artist
 	userdict[userid][13] += tagtypes[2]						#empty
 	if any(tagtypes):
-		populateusertagdict(userid,typeinfo['removed_tags'].split(),usertagdict)
 		DebugPrint("Tag Remove")
 		dirty = 1
 	
@@ -337,44 +322,17 @@ def updatepostdata(userid,userdict,typeinfo,tagdict,usertagdict):
 	
 	DebugPrintInput('----------')
 
-def populateusertagdict(userid,taglist,usertagdict):
-	for tag in taglist:
-		if metatagexists(tag):
-			continue
-		if userid not in usertagdict:
-			usertagdict[userid]={}
-		usertagdict[userid][tag] = (usertagdict[userid][tag] + 1) if (tag in usertagdict[userid]) else 1
-		
-
-def metatagexists(string):
-	return (parentexists(string) or sourceexists(string) or ratingexists(string))
-
-def parentexists(string):
-	return ((string.find("parent:")) >= 0)
-
-def sourceexists(string):
-	return ((string.find("source:")) >= 0)
-
-def ratingexists(string):
-	return ((string.find("rating:")) >= 0)
-
 def metatagcount(string):
 	return parentcount(string) + sourcecount(string) + ratingcount(string)
 
 def parentcount(string):
-	if parentexists(string): return 1
-	else: return 0
+	return 1 if ParentExists(string) else 0
 
 def sourcecount(string):
-	if sourceexists(string): return 1
-	else: return 0
+	return 1 if SourceExists(string) else 0
 
 def ratingcount(string):
-	if ratingexists(string): return 1
-	else: return 0
-
-def isupload(postdict):
-	return (len(postdict['unchanged_tags']) == 0) and (len(postdict['added_tags']) > 0)
+	return 1 if RatingExists(string) else 0
 
 def istagadd(postdict):
 	if (len(postdict['unchanged_tags']) > 0) and (len(postdict['added_tags']) > 0):
@@ -387,20 +345,20 @@ def istagremove(postdict):
 	return False
 
 def isparentchange(postdict):
-	return (parentexists(postdict['added_tags']) or parentexists(postdict['removed_tags'])) and not isupload(postdict)
+	return (ParentExists(postdict['added_tags']) or ParentExists(postdict['removed_tags'])) and not IsUpload(postdict)
 
 def isratingchange(postdict):
-	return ratingexists(postdict['added_tags']) and ratingexists(postdict['removed_tags'])
+	return RatingExists(postdict['added_tags']) and RatingExists(postdict['removed_tags'])
 
 def issourcechange(postdict):
-	return (sourceexists(postdict['added_tags']) or sourceexists(postdict['removed_tags'])) and not isupload(postdict)
+	return (SourceExists(postdict['added_tags']) or SourceExists(postdict['removed_tags'])) and not IsUpload(postdict)
 
 #UPLOAD SPECIFIC FUNCTIONS
 
 def updateuploaddata(userid,userdict,typelist,tagdict):
 	tagstring = typelist['tags'].split()
 	postid = typelist['post_id']
-	returnvalue = getpostdata(postid,tagstring,tagdict)
+	returnvalue = getlatestpostdata(postid,tagstring,tagdict)
 	userdict[userid][1] += returnvalue[0]	#mod bypass
 	userdict[userid][2] += returnvalue[1]	#deleted
 	if typelist['parent_id']!=None:
@@ -421,35 +379,25 @@ def updateuploaddata(userid,userdict,typelist,tagdict):
 	userdict[userid][12] += tagtypes[2]						#empty
 	userdict[userid][13] += returnvalue[2]					#removed
 
-def getpostdata(postid,tagstringver,tagdict):
+def getlatestpostdata(postid,tagstringver,tagdict):
 	"""Compare and contrast the version data with the current post data
 	
 	Globals used: tagtypedict
 	"""
-	#Send API request to Danbooru; response will be a dictionary
+	#Get the lastest post data
 	postshow = SubmitRequest('show','posts',id=postid)
 	
-	#First update the Tag dictionary while we have all this good data
-	#This reduces the amount of misses later on
-	#
+	#First update the Tag dictionary while we have all this good data; This reduces the amount of misses later on
 	for key in tagtypedict:
-		#Get the tag string in the post dictionary for each tag type
 		tags = postshow['tag_string_'+key].split()
-		
-		#Iterate through each tag
 		for i in range(0,len(tags)):
-			
 			if FindUnicode(tags[i]) < 0:
-				#If no unicode was found, then update the Tag dictionary
 				tagdict[tags[i]] = tagtypedict[key]
 			else:
-				#If unicode was found, then document for later and continue
 				foundunicodeintag('post',postid)
 	
 	#Done updating tagdict, now get data from post info
-	
 	returnvalue = [0,0,0]
-	#First get the mod queue and deleted status
 	if (postshow['approver_id']==None) and (not postshow['is_deleted']) and (not postshow['is_pending']):
 		DebugPrint("Mod Queue Bypass")
 		returnvalue[0] = 1
@@ -465,71 +413,26 @@ def getpostdata(postid,tagstringver,tagdict):
 		#2. Not one of the tags to disregard
 		#3. Not a Unicode tag
 		#4. Not an empty tag
-		if (tagstringver[i] not in tagstringpost) and not (isdisregardtag(tagstringver[i])) and \
+		if (tagstringver[i] not in tagstringpost) and not (IsDisregardTag(tagstringver[i])) and \
 			(tagstringver[i] in tagdict) and (tagdict[tagstringver[i]]!=2):
 			DebugPrintInput("Tag error1",tagstringver[i],postid)
 			returnvalue[2] += 1
 	
 	return returnvalue
 
-def counttags(tagstring,tagdict,postid):
-	"""Count all the tags for each category"""
-	
-	tagcount = [0]*5
-	tagmiss = 0
-	
-	#Iterate through each tag in the tag string
-	for i in range(0,len(tagstring)):
-		
-		if metatagexists(tagstring[i]):
-			#Don't count metatags
-			continue
-		
-		if isdisregardtag(tagstring[i]):
-			#Don't count request tags
-			continue
-		
-		if (tagstring[i] in tagdict):
-			#Found in the Tag dictionary, so record the result
-			tagcount[tagdict[tagstring[i]]] += 1
-		else:
-			#Not found in the Tag dictionary, so we need to do extra processing
-			tagmiss = 1
-			
-			#Get the category of the new tag
-			returntag = gettaginfo(tagstring[i],postid)
-			
-			#If unicode was found, then document for later and continue
-			if returntag < 0:
-				foundunicodeintag('post',postid)
-				
-				#Unicode errors are counted the same as empty tags
-				tagcount[2] += 1
-				continue
-			
-			#Record the result
-			tagdict[tagstring[i]] = returntag
-			
-			#Update the tag count
-			tagcount[returntag] += 1
-			
-			#Print some feedback
-			#DebugPrint(".",end="",flush=True)
-	
-	#Print some more feedback
-	#if tagmiss == 1:
-		#DebugPrint("T",end="",flush=True)
-	
-	return tagcount
-
 #GENERAL VERSIONS FUNCTIONS
 
 def updateextradata(userid,userdict,currversiondata,typename):
-	if typename == 'artist_commentary': lookupid = 'post_id'
-	else: lookupid = typename+'_id'
-	urladd = JoinArgs(GetArgUrl('search',lookupid,currversiondata[lookupid]), \
-				GetPageUrl(currversiondata['id']),GetArgUrl('limit','',1))
+	"""Get prior version for all versioned categories (except for post)"""
+	
+	if typename == 'artist_commentary': 
+		lookupid = 'post_id'
+	else: 
+		lookupid = typename+'_id'
+	
+	urladd = JoinArgs(GetSearchUrl(lookupid,currversiondata[lookupid]),GetPageUrl(currversiondata['id']),GetLimitUrl(1))
 	priorversiondata = SubmitRequest('list',typename + '_versions',urladdons=urladd)
+	
 	if typename == 'note':
 		updatenotedata(userid,userdict,currversiondata,priorversiondata)
 	if typename == 'artist_commentary':
@@ -562,7 +465,7 @@ def updatenotedata(userid,userdict,currversiondata,priorversiondata):
 		dirty = 1
 		userdict[userid][3] += 1
 	if (currversiondata['width'] != priorversiondata['width']) or (currversiondata['height'] != priorversiondata['height']):
-		DebugPrint("Reisize note")
+		DebugPrint("Resize note")
 		dirty = 1
 		userdict[userid][4] += 1
 	if (currversiondata['is_active'] == False) and (priorversiondata['is_active'] == True):
@@ -627,42 +530,21 @@ def updatepooldata(userid,userdict,currversiondata,priorversiondata):
 	
 	postpoollist = list(map(int,currversiondata['post_ids'].split()))
 	prepoollist = list(map(int,priorversiondata['post_ids'].split())) #page crossing will cause failure here
-	if isaddpost(prepoollist,postpoollist):
+	if IsAddItem(prepoollist,postpoollist):
 		DebugPrint("Add post")
 		dirty = 1
 		userdict[userid][2] += 1
-	if isremovepost(prepoollist,postpoollist):
+	if IsRemoveItem(prepoollist,postpoollist):
 		DebugPrint("Remove post")
 		dirty = 1
 		userdict[userid][3] += 1
-	if isorderchange(prepoollist,postpoollist):
+	if IsOrderChange(prepoollist,postpoollist):
 		DebugPrint("Order change")
 		dirty = 1
 		userdict[userid][4] += 1
 	if dirty == 0:
 		DebugPrint("Other")
 		userdict[userid][5] += 1
-
-def getorderedintersection(lista,listb):
-	diff = list(set(lista).difference(listb))
-	templist = lista.copy()
-	for i in range(0,len(diff)):
-		temp = templist.pop(templist.index(diff[i]))
-	return templist
-
-def isorderchange(prepoolarray,postpoolarray):
-	preprime = getorderedintersection(prepoolarray,postpoolarray)
-	postprime = getorderedintersection(postpoolarray,prepoolarray)
-	return not(preprime == postprime)
-
-def isaddpost(prepoolarray,postpoolarray):
-	return len(set(postpoolarray).difference(prepoolarray)) > 0
-
-def isremovepost(prepoolarray,postpoolarray):
-	return len(set(prepoolarray).difference(postpoolarray)) > 0
-
-def iscreatepool(): #will be figured out from pool versions list for each pool
-	pass
 
 #ARTIST SPECIFIC FUNCTIONS
 
@@ -704,7 +586,7 @@ def updateartistdata(userid,userdict,currversiondata,priorversiondata):
 	#Done getting all the information from the version info
 	#Now let's search for a corresponding wiki page
 	
-	urladd = JoinArgs(GetArgUrl('search','title',currversiondata['name']))
+	urladd = JoinArgs(GetSearchUrl('title',currversiondata['name']))
 	
 	#Send API request to Danbooru; response will be an indexed list of dictionaries
 	artistwiki = SubmitRequest('list','wiki_pages',urladdons=urladd)
@@ -718,7 +600,7 @@ def updateartistdata(userid,userdict,currversiondata,priorversiondata):
 		#Search through the list wiki page versions
 		#NOTE: 	Being lazy and searching with a high limit instead of handling page crossings
 		#		Will fail if the number of versions created in the last month is very large
-		urladd = JoinArgs(GetArgUrl('search','wiki_page',artistwiki['id']),GetArgUrl('limit','',typelimits['wiki_page']))
+		urladd = JoinArgs(GetSearchUrl('wiki_page',artistwiki['id']),GetLimitUrl(typelimits['wiki_page']))
 		
 		#Send API request to Danbooru; response will be an indexed list of dictionaries
 		wikiversionlist = SubmitRequest('list','wiki_page_versions',urladdons=urladd)
@@ -754,9 +636,9 @@ def updatewikipagedata(userid,userdict,currversiondata,priorversiondata):
 	artwikiedit = 0
 	createevent = 0
 	
-	#Wiki page version do not have the category, but the wiki page does
+	#First, check to see if the wiki version is a result of an artist edit
+	#Wiki page version does not have the category, but the wiki page does
 	
-	#Send API request to Danbooru; response will be a dictionary
 	wikipage=SubmitRequest('show','wiki_pages',id=currversiondata['wiki_page_id'])
 	
 	if wikipage['category_name']==1: 
@@ -767,7 +649,7 @@ def updatewikipagedata(userid,userdict,currversiondata,priorversiondata):
 		#Search through the list artist versions
 		#NOTE: 	Being lazy and searching with a high limit instead of handling page crossings
 		#		Will fail if the number of versions created in the last month is very large
-		urladd = JoinArgs(GetArgUrl('search','name',currversiondata['title']),GetArgUrl('limit','',typelimits['artist']))
+		urladd = JoinArgs(GetSearchUrl('name',currversiondata['title']),GetLimitUrl(typelimits['artist']))
 		
 		#Send API request to Danbooru; response will be a list of dictionaries
 		artistverlist = SubmitRequest('list','artist_versions',urladdons=urladd)
@@ -875,10 +757,11 @@ def updatebulkupdaterequestdata(userid,userdict,typeentry):
 	DebugPrintInput("-------")
 
 if __name__ =='__main__':
-	parser = argparse.ArgumentParser(description="Generate a Danbooru User Report")
+	parser = ArgumentParser(description="Generate a Danbooru User Report")
 	parser.add_argument('category',help="post, upload, note, artist_commentary, pool, "
 						"artist, wiki_page, forum_topic, forum_post, tag_implication, "
 						"tag_alias, bulk_update_request, post_appeal, comment")
 	parser.add_argument('--new', help="Create a new user report",action="store_true")
 	args = parser.parse_args()
+	
 	main(args)
