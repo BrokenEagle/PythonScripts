@@ -12,7 +12,8 @@ from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode
 				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,IsAddItem,IsRemoveItem,IsOrderChange,\
 				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff
 from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,GetLimitUrl,GetSearchUrl,ProcessTimestamp,\
-					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload
+					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload,\
+					IsParentChange,IsSourceChange,IsRatingChange
 from myglobal import workingdirectory,datafilepath,csvfilepath
 
 #MODULE GLOBAL VARIABLES
@@ -283,15 +284,15 @@ def updatepostdata(userid,userdict,typeinfo,tagdict):
 	
 	postid = typeinfo['post_id']
 	dirty = 0
-	if isparentchange(typeinfo):
+	if IsParentChange(typeinfo):
 		DebugPrint("Parent Change")
 		dirty = 1
 		userdict[userid][1] += 1
-	if isratingchange(typeinfo):
+	if IsRatingChange(typeinfo):
 		DebugPrint("Rating Change")
 		dirty = 1
 		userdict[userid][2] += 1
-	if issourcechange(typeinfo):
+	if IsSourceChange(typeinfo):
 		DebugPrint("Source")
 		dirty = 1
 		userdict[userid][3] += 1
@@ -321,37 +322,6 @@ def updatepostdata(userid,userdict,typeinfo,tagdict):
 		userdict[userid][14] += 1
 	
 	DebugPrintInput('----------')
-
-def metatagcount(string):
-	return parentcount(string) + sourcecount(string) + ratingcount(string)
-
-def parentcount(string):
-	return 1 if ParentExists(string) else 0
-
-def sourcecount(string):
-	return 1 if SourceExists(string) else 0
-
-def ratingcount(string):
-	return 1 if RatingExists(string) else 0
-
-def istagadd(postdict):
-	if (len(postdict['unchanged_tags']) > 0) and (len(postdict['added_tags']) > 0):
-		return (len(postdict['added_tags'].split())) > metatagcount(postdict['added_tags'])
-	return False
-
-def istagremove(postdict):
-	if (len(postdict['unchanged_tags']) > 0) and (len(postdict['removed_tags']) > 0):
-		return (len(postdict['removed_tags'].split())) > metatagcount(postdict['removed_tags'])
-	return False
-
-def isparentchange(postdict):
-	return (ParentExists(postdict['added_tags']) or ParentExists(postdict['removed_tags'])) and not IsUpload(postdict)
-
-def isratingchange(postdict):
-	return RatingExists(postdict['added_tags']) and RatingExists(postdict['removed_tags'])
-
-def issourcechange(postdict):
-	return (SourceExists(postdict['added_tags']) or SourceExists(postdict['removed_tags'])) and not IsUpload(postdict)
 
 #UPLOAD SPECIFIC FUNCTIONS
 

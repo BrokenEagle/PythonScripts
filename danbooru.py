@@ -10,7 +10,7 @@ from datetime import datetime
 import argparse
 import urllib.request
 import urllib.parse
-from urllib.error import HTTPError,TimeoutError
+from urllib.error import HTTPError
 
 #MY IMPORTS
 from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction
@@ -181,7 +181,7 @@ def IDListLoop(type,idlist,iteration,inputs={}):
 	"""Standard loop iterating through a list of IDs"""
 	
 	for num in idlist:
-		item = SubmitRequest('show',type,id=num,urladd)
+		item = SubmitRequest('show',type,id=num)
 		if len(item) == 0:
 			continue
 		ret = iteration(item,**inputs)
@@ -302,17 +302,27 @@ def AgeStringInput(string):
 
 #POST SPECIFIC FUNCTIONS
 
-def IsUpload(postdict):
-	return (len(postdict['unchanged_tags']) == 0) and (len(postdict['added_tags']) > 0)
+def IsUpload(postver):
+	return (len(postver['unchanged_tags']) == 0) and (len(postver['added_tags']) > 0)
 
-def HasChild(postdict):
-	return postdict['has_visible_children']
+def HasChild(postver):
+	return postver['has_visible_children']
 
-def HasParent(postdict):
-	return (postdict['parent_id'] != None)
+def HasParent(postver):
+	return (postver['parent_id'] != None)
 
-def HasRelated(postdict):
-	return (HasParent(postdict) or HasChild(postdict))
+def HasRelated(postver):
+	return (HasParent(postver) or HasChild(postver))
+
+def IsTagAdd(postver):
+	if (len(postver['unchanged_tags']) > 0) and (len(postver['added_tags']) > 0):
+		return (len(postver['added_tags'].split())) > MetatagCount(postver['added_tags'])
+	return False
+
+def IsTagRemove(postver):
+	if (len(postver['unchanged_tags']) > 0) and (len(postver['removed_tags']) > 0):
+		return (len(postver['removed_tags'].split())) > MetatagCount(postver['removed_tags'])
+	return False
 
 def MetatagExists(string):
 	return (ParentExists(string) or SourceExists(string) or RatingExists(string))
@@ -325,6 +335,27 @@ def SourceExists(string):
 
 def RatingExists(string):
 	return ((string.find("rating:")) >= 0)
+
+def IsParentChange(postver):
+	return (ParentExists(postver['added_tags']) or ParentExists(postver['removed_tags'])) and not IsUpload(postver)
+
+def IsRatingChange(postver):
+	return RatingExists(postver['added_tags']) and RatingExists(postver['removed_tags'])
+
+def IsSourceChange(postver):
+	return (SourceExists(postver['added_tags']) or SourceExists(postver['removed_tags'])) and not IsUpload(postver)
+
+def MetatagCount(string):
+	return ParentCount(string) + SourceCount(string) + RatingCount(string)
+
+def ParentCount(string):
+	return 1 if ParentExists(string) else 0
+
+def RatingCount(string):
+	return 1 if RatingExists(string) else 0
+
+def SourceCount(string):
+	return 1 if SourceExists(string) else 0
 
 #TAG SPECIFIC FUNCTIONS
 
