@@ -10,6 +10,7 @@ from datetime import datetime
 import argparse
 import urllib.request
 import urllib.parse
+from urllib.error import HTTPError,TimeoutError
 
 #MY IMPORTS
 from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction
@@ -45,6 +46,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 	Opname and typename are passed in as strings.
 	Ex: SubmitRequest('show','posts',id=1234567)
 	"""
+	retry = 0
 	urlsubmit = GetDanbooruUrl(opname,typename)
 	if id != None:
 		urlsubmit = urlsubmit % (id,username,apikey)
@@ -59,11 +61,18 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			req = urllib.request.Request(url=urlsubmit,data=senddata,method=httpmethod)
 			httpresponse = urllib.request.urlopen(req)
 			DebugPrintInput(httpresponse.status,httpresponse.reason)
-		except urllib.error.HTTPError as inst:
+		except HTTPError as inst:
 			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
 				continue
 			else:
 				return -1
+		except TimeoutError:
+			print("\nTimed out! Retrying in 60 seconds")
+			if retry > 2:
+				raise
+			time.sleep(60)
+			retry += 1
+			continue
 		except:
 			print(urlsubmit,httpmethod)
 			print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
@@ -167,6 +176,20 @@ def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=B
 		postprocess(typelist,**inputs)
 		idseen = idlist; page += 1
 		print(':', end="", flush=True)
+
+def IDListLoop(type,idlist,iteration,inputs={}):
+	"""Standard loop iterating through a list of IDs"""
+	
+	for num in idlist:
+		item = SubmitRequest('show',type,id=num,urladd)
+		if len(item) == 0:
+			continue
+		ret = iteration(item,**inputs)
+		if ret < 0:
+			return
+		elif ret > 0:
+			continue
+		print('.', end="", flush=True)
 
 #LOOP ITERABLES
 
