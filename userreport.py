@@ -86,7 +86,7 @@ def main(args):
 	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
 	if (typename == 'post' or typename == 'upload') and os.path.exists(tagdictfile): 
 		print("Opening",tagdictfile)
-		inputdict['tagdict'] = PutGetData(tagdictfile,'r')
+		inputdict['tagdict'] = PutGetUnicode(tagdictfile,'r')
 	else: 
 		inputdict['tagdict'] = {}
 	
@@ -97,7 +97,7 @@ def main(args):
 		#Tag aliases require sequential paging to list in the correct order
 		correctorder = [GetPageUrl(100000)]
 		IDPageLoop('tag_aliases',typelimits['tag_alias'],TagdictAliasIteration,firstloop=correctorder,inputs=inputdict)
-		PutGetData(tagdictfile,'w',inputdict['tagdict'])
+		PutGetUnicode(tagdictfile,'w',inputdict['tagdict'])
 		#There is a category 'upload', but the data isn't as good as in 'post_versions'
 		controller = 'post_versions'
 	elif typename in versionedtypes:
@@ -123,7 +123,7 @@ def main(args):
 	
 	#Now that we're done, let's do one last final save
 	if typename == 'post' or typename=='upload':
-		PutGetData(tagdictfile,'w',inputdict['tagdict'])
+		PutGetUnicode(tagdictfile,'w',inputdict['tagdict'])
 	PutGetData(userdictfile,'w',[lastid,inputdict['starttime'],inputdict['userdict']])
 	
 	#As a final act, also write a CSV file
@@ -189,7 +189,7 @@ def UserReportIteration(item,typename,starttime,userdict,tagdict,**kwargs):
 def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentday):
 	#Save tag dictionary at this point for 'upload'
 	if typename == 'post' or typename=='upload':
-		PutGetData(tagdictfile,'w',tagdict)
+		PutGetUnicode(tagdictfile,'w',tagdict)
 	
 	#Also save the user data at this point
 	PutGetData(userdictfile,'w',[typelist[-1]['id'],starttime,userdict])
