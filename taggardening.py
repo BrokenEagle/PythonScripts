@@ -157,7 +157,7 @@ def main(args):
 	if args.download:
 		if len(args.tags) == 0:
 			sys.exit(-1)
-		IDPageLoop('posts',DownloadPostImageIteration,100,addonlist=[GetArgUrl2('tags',args.tags)])
+		IDPageLoop('posts',100,DownloadPostImageIteration,addonlist=[GetArgUrl2('tags',args.tags)])
 		return 0
 	
 	if args.date != None:
