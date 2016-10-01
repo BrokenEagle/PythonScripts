@@ -99,6 +99,10 @@ def CreateDirectory(filepath):
 	if not os.path.exists(directory):
 		os.makedirs(directory)
 
+def CreateOpen(filepath,optype):
+	CreateDirectory(filepath)
+	return open(filepath,optype)
+
 def DownloadFile(localfilepath,serverfilepath):
 	"""Download a remote file to a local location"""
 	#Create the directory for the local file if it doesn't already exist
