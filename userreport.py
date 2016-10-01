@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 #LOCAL IMPORTS
 from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
 				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,IsAddItem,IsRemoveItem,IsOrderChange,\
-				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff
+				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff,TouchFile
 from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,GetLimitUrl,GetSearchUrl,ProcessTimestamp,\
 					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload,\
 					IsParentChange,IsSourceChange,IsRatingChange
@@ -20,6 +20,7 @@ from myglobal import workingdirectory,datafilepath,csvfilepath
 userdictfile = workingdirectory + datafilepath + '%suserdict.txt'
 csvfile = workingdirectory + csvfilepath + '%s.csv'
 tagdictfile = workingdirectory + "tagdict.txt"
+watchdogfile = workingdirectory + "watchdog.txt"
 
 versionedtypes = ['post','upload','pool','note','artist_commentary','artist','wiki_page']
 nonversionedtypes = ['comment','forum_post','forum_topic','post_appeal','bulk_update_request','tag_implication','tag_alias']
@@ -193,6 +194,7 @@ def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentda
 	
 	#Also save the user data at this point
 	PutGetData(userdictfile,'w',[typelist[-1]['id'],starttime,userdict])
+	TouchFile(watchdogfile)
 	
 	#Print some extra screen feedback so we know where we're at
 	if typename in versionedtypes:
