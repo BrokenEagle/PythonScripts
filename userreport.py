@@ -17,7 +17,9 @@ from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,Get
 from myglobal import workingdirectory,datafilepath,csvfilepath
 
 #MODULE GLOBAL VARIABLES
+prioruserdictfile = workingdirectory + datafilepath + 'prior%suserdict.txt'
 userdictfile = workingdirectory + datafilepath + '%suserdict.txt'
+currentuserdictfile = None
 csvfile = workingdirectory + csvfilepath + '%s.csv'
 tagdictfile = workingdirectory + "tagdict.txt"
 watchdogfile = workingdirectory + "watchdog.txt"
@@ -50,7 +52,7 @@ def main(args):
 	"""Main function; 
 	args: Instance of argparse.Namespace
 	"""
-	global userdictfile,csvfile
+	global userdictfile,prioruserdictfile,currentuserdictfile,csvfile
 	
 	#TurnDebugOn()	#uncomment this line to see debugging in this module
 	#TurnDebugOn('danbooru')	#uncomment this line to see debugging in danbooru module
@@ -62,30 +64,47 @@ def main(args):
 	#Set variables according to the current category
 	typename = args.category
 	userdictfile = userdictfile % typename
+	prioruserdictfile = prioruserdictfile % typename
 	csvfile = csvfile % typename
-	inputdict = {'typename':typename}
+	inputdict = {'typename':typename,'prior':args.prior}
 	
 	#Check to see if we are starting new, or are resuming progress
-	if os.path.exists(userdictfile) and not (args.new):
-		print("Opening",userdictfile)
-		startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
+	if args.prior:
+		currentuserdictfile = prioruserdictfile
+		if os.path.exists(prioruserdictfile) and not args.new:
+			print("Opening",prioruserdictfile)
+			startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(prioruserdictfile,'r')
+			
+			#Continue from the last saved location
+		else:
+			print("Opening",userdictfile)
+			startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
+			inputdict['starttime'] -= DaysToSeconds(30)
+			inputdict['userdict'] = {}
 		
-		#Continue from the last saved location
 		startid = [GetPageUrl(startid)]
 	else:
-		if (typename == 'forum_topic') or (typename == 'bulk_update_request') or \
-			(typename == 'tag_implication') or (typename == 'tag_alias'):
-			#Setting the page argument fixes ordering issues for the above categories
-			#It's set very high to prevent any actual instances from being above it
-			startid = [GetPageUrl(1000000)]
+		currentuserdictfile = userdictfile
+		if os.path.exists(userdictfile) and not args.new:
+			print("Opening",userdictfile)
+			startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
+			
+			#Continue from the last saved location
+			startid = [GetPageUrl(startid)]
 		else:
-			startid = []
-		
-		inputdict['userdict'] = {}
-		inputdict['starttime'] = GetCurrentTime()
+			if (typename == 'forum_topic') or (typename == 'bulk_update_request') or \
+				(typename == 'tag_implication') or (typename == 'tag_alias'):
+				#Setting the page argument fixes ordering issues for the above categories
+				#It's set very high to prevent any actual instances from being above it
+				startid = [GetPageUrl(1000000)]
+			else:
+				startid = []
+			
+			inputdict['userdict'] = {}
+			inputdict['starttime'] = GetCurrentTime()
 	
 	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
-	if (typename == 'post' or typename == 'upload') and os.path.exists(tagdictfile): 
+	if (typename == 'post' or typename == 'upload') and os.path.exists(tagdictfile) and not args.prior: 
 		print("Opening",tagdictfile)
 		inputdict['tagdict'] = PutGetUnicode(tagdictfile,'r')
 	else: 
@@ -93,13 +112,14 @@ def main(args):
 	
 	#Set the appropriate Danbooru controller that will handle all requests
 	if typename == 'upload':
-		#Check for new aliases and update tag dictionary
-		print("Updating tag dictionary with new aliases")
-		#Tag aliases require sequential paging to list in the correct order
-		correctorder = [GetPageUrl(100000)]
-		IDPageLoop('tag_aliases',typelimits['tag_alias'],TagdictAliasIteration,firstloop=correctorder,inputs=inputdict)
-		PutGetUnicode(tagdictfile,'w',inputdict['tagdict'])
-		#There is a category 'upload', but the data isn't as good as in 'post_versions'
+		if not args.prior:
+			#Check for new aliases and update tag dictionary
+			print("Updating tag dictionary with new aliases")
+			#Tag aliases require sequential paging to list in the correct order
+			correctorder = [GetPageUrl(100000)]
+			IDPageLoop('tag_aliases',typelimits['tag_alias'],TagdictAliasIteration,firstloop=correctorder,inputs=inputdict)
+			PutGetUnicode(tagdictfile,'w',inputdict['tagdict'])
+			#There is a category 'upload', but the data isn't as good as in 'post_versions'
 		controller = 'post_versions'
 	elif typename in versionedtypes:
 		controller = typename + '_versions'
@@ -123,22 +143,23 @@ def main(args):
 							inputs=inputdict,firstloop=startid,postprocess=UserReportPostprocess)
 	
 	#Now that we're done, let's do one last final save
-	if typename == 'post' or typename=='upload':
+	if (typename == 'post' or typename=='upload') and not args.prior:
 		PutGetUnicode(tagdictfile,'w',inputdict['tagdict'])
-	PutGetData(userdictfile,'w',[lastid,inputdict['starttime'],inputdict['userdict']])
+	PutGetData(currentuserdictfile,'w',[lastid,inputdict['starttime'],inputdict['userdict']])
 	
-	#As a final act, also write a CSV file
-	with open(csvfile,'w',newline='') as outfile:
-		writer = csv.writer(outfile)
-		writer.writerow(typetableheaders[typename])
-		for key in inputdict['userdict']:
-			writer.writerow([key]+inputdict['userdict'][key])
+	if not args.prior:
+		#As a final act, also write a CSV file
+		with open(csvfile,'w',newline='') as outfile:
+			writer = csv.writer(outfile)
+			writer.writerow(typetableheaders[typename])
+			for key in inputdict['userdict']:
+				writer.writerow([key]+inputdict['userdict'][key])
 	
 	print("\nDone!")
 
 #Loop functions
 
-def UserReportIteration(item,typename,starttime,userdict,tagdict,**kwargs):
+def UserReportIteration(item,typename,starttime,userdict,prior,**kwargs):
 	if typename in versionedtypes:
 		currenttime = ProcessTimestamp(item['updated_at'])
 		userid = item['updater_id']
@@ -160,10 +181,20 @@ def UserReportIteration(item,typename,starttime,userdict,tagdict,**kwargs):
 		return -1
 	
 	#For each instance found, update user Totals column count
-	if userid not in userdict: 
-		userdict[userid] = [1] + [0]*typeextracolumns[typename]
-	else: 
-		userdict[userid][0] += 1
+	if prior:
+		if typename == 'upload':
+			if userid not in userdict:
+				userdict[userid] = [0,0]
+			userdict[userid][0] += 1
+			userdict[userid][1] += len(item['tags'].split())
+		else:
+			userdict[userid] = [userdict[userid][0] + 1] if (userid in userdict) else [1]
+		return 0
+	else:
+		if userid not in userdict: 
+			userdict[userid] = [1] + [0]*typeextracolumns[typename]
+		else: 
+			userdict[userid][0] += 1
 	
 	#Go to each types's handler function to process more data
 	if typename=='post':
@@ -187,13 +218,13 @@ def UserReportIteration(item,typename,starttime,userdict,tagdict,**kwargs):
 	
 	return 0
 
-def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentday):
+def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentday,prior,**kwargs):
 	#Save tag dictionary at this point for 'upload'
-	if typename == 'post' or typename=='upload':
+	if (typename == 'post' or typename=='upload') and not prior:
 		PutGetUnicode(tagdictfile,'w',tagdict)
 	
 	#Also save the user data at this point
-	PutGetData(userdictfile,'w',[typelist[-1]['id'],starttime,userdict])
+	PutGetData(currentuserdictfile,'w',[typelist[-1]['id'],starttime,userdict])
 	TouchFile(watchdogfile)
 	
 	#Print some extra screen feedback so we know where we're at
@@ -733,7 +764,8 @@ if __name__ =='__main__':
 	parser.add_argument('category',help="post, upload, note, artist_commentary, pool, "
 						"artist, wiki_page, forum_topic, forum_post, tag_implication, "
 						"tag_alias, bulk_update_request, post_appeal, comment")
-	parser.add_argument('--new', help="Create a new user report",action="store_true")
+	parser.add_argument('--prior',help="Get the prior month",action="store_true",default=False)
+	parser.add_argument('--new', help="Create a new user report",action="store_true",default=False)
 	args = parser.parse_args()
 	
 	main(args)
