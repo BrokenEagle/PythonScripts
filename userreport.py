@@ -159,7 +159,7 @@ def main(args):
 
 #Loop functions
 
-def UserReportIteration(item,typename,starttime,userdict,prior,**kwargs):
+def UserReportIteration(item,typename,starttime,userdict,prior,tagdict,**kwargs):
 	if typename in versionedtypes:
 		currenttime = ProcessTimestamp(item['updated_at'])
 		userid = item['updater_id']
