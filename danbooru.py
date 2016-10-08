@@ -18,6 +18,7 @@ from myglobal import username,apikey,workingdirectory,imagefilepath
 
 #LOCAL GLOBALS
 
+wikilinkregex ='\[\[([^\|\]]+)\|?[^\]]*\]\]'
 dateregex = '^([0-9]{4}-[0-9]{2}-[0-9]{2})?(\\.\\.)?([0-9]{4}-[0-9]{2}-[0-9]{2})?$'
 idregex = '^(\\d+)?(\\.\\.)?(\\d+)?$'
 ageregex = '^([0-9]*)([dhimoswy]*)?(\\.\\.)?([0-9]*)?([dhimoswy]*)$'
@@ -378,6 +379,11 @@ def GetTagCategory(tagname):
 
 def IsDisregardTag(tagname):
 	return true if (tagname in disregardtags) or (tagname[-8:]=='_request') else False
+
+#DTEXT HELPER FUNCTIONS
+
+def GetWikiLinks(string):
+	return list(map(lambda x:x.lower().replace(' ','_'),re.findall(wikilinkregex,string)))
 
 #INTERNAL HELPER FUNCTIONS
 
