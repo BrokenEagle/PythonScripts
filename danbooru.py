@@ -14,7 +14,7 @@ from urllib.error import HTTPError
 
 #MY IMPORTS
 from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction
-from myglobal import username,apikey,workingdirectory,imagefilepath
+from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
 #LOCAL GLOBALS
 
@@ -31,7 +31,6 @@ true = True
 false = False
 
 #Danbooru URL Constants
-danbooru_domain = 'http://danbooru.donmai.us'
 danbooru_auth = '?login=%s&api_key=%s'
 
 #For building Danbooru URL's and methods on the fly based on the operation type
@@ -119,11 +118,11 @@ def GetServFilePath(postdict,size="medium"):
 	Input is a post dictionary obtained from Danbooru with either 'list' or 'show'.
 	"""
 	if size=="small":
-		return danbooru_domain + postdict["preview_file_url"]
+		return booru_domain + postdict["preview_file_url"]
 	if size=="medium":
-		return danbooru_domain + postdict["large_file_url"]
+		return booru_domain + postdict["large_file_url"]
 	if size=="large":
-		return danbooru_domain + postdict["file_url"]
+		return booru_domain + postdict["file_url"]
 
 def DownloadPostImage(postdict,size="medium"):
 	"""Download a post image from Danbooru"""
@@ -154,6 +153,8 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
 			currentid = item['id']
 			if iteration(item,**inputs) < 0:
 				return currentid
+		if len(typelist) < limit:
+			return currentid
 		postprocess(typelist,**inputs)
 		urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid),*addonlist)
 		print(':', end="", flush=True)
@@ -389,4 +390,4 @@ def GetWikiLinks(string):
 
 def GetDanbooruUrl(opname,typename):
 	"""Build Danbooru URL on the fly"""
-	return (danbooru_domain + '/' + typename + danbooru_ops[opname][0]+danbooru_auth)
+	return (booru_domain + '/' + typename + danbooru_ops[opname][0]+danbooru_auth)

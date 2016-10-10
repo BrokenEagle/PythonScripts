@@ -3,6 +3,9 @@
 
 #GLOBAL VARIABLES
 
+#Other domains include hijiribe, sonohara, and testbooru
+booru_domain = "http://danbooru.donmai.us"
+
 """Filepaths with backslashes ('\') need to be double escaped ('\\') as demonstrated below"""
 workingdirectory = "D:\\temp\\"
 datafilepath = "data\\"
