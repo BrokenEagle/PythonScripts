@@ -16,8 +16,7 @@ from misc import GetFilename,GetCurrentTime,TurnDebugOn,DebugPrint
 
 watchdogfile = ""
 
-pythonfilere = '^(.*)\\.py$'
-pythonfilerg = re.compile(pythonfilere)
+pythonfileregex = re.compile(r'^(.*)\.py$')
 
 def StartProcess(commandline):
 	return subprocess.Popen([sys.executable]+commandline,creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
@@ -27,7 +26,7 @@ def GetWatchdogInfo(program):
 	
 	print("Getting module watchdog info")
 	filename = GetFilename(program)
-	match = pythonfilerg.match(filename)
+	match = pythonfileregex.match(filename)
 	if not match:
 		print(filename, "has an invalid Python extension")
 		exit(-1)

@@ -18,10 +18,16 @@ from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
 #LOCAL GLOBALS
 
-wikilinkregex ='\[\[([^\|\]]+)\|?[^\]]*\]\]'
-dateregex = '^([0-9]{4}-[0-9]{2}-[0-9]{2})?(\\.\\.)?([0-9]{4}-[0-9]{2}-[0-9]{2})?$'
-idregex = '^(\\d+)?(\\.\\.)?(\\d+)?$'
-ageregex = '^([0-9]*)([dhimoswy]*)?(\\.\\.)?([0-9]*)?([dhimoswy]*)$'
+wikilinkregex = re.compile(r'\[\[([^\|\]]+)\|?[^\]]*\]\]')
+dateregex = re.compile(r"""^([\d]{4}-[\d]{2}-[\d]{2})?		#Date1
+							(?:\.\.)?						#Non-capturing group for ..
+							(?(1)(?<=\.\.))					#If Date1 exists, ensure .. exists
+							([\d]{4}-[\d]{2}-[\d]{2})?$		#Date2""",re.X)
+idregex = re.compile(r'^(\d+)?(?:\.\.)?(\d+)?$')
+ageregex = re.compile(r"""^([\d]+(?:s|m[io]|h|d|w|y))?		#Age1
+							(?:\.\.)?						#Non-capturing group for ..
+							(?(1)(?<=\.\.))					#If Age1 exists, ensure .. exists
+							([\d]+(?:s|m[io]|h|d|w|y))?$	#Age2""",re.X)
 agetypedict = {'s':1,'mi':60,'h':60*60,'d':60*60*24,'w':60*60*24*7,'mo':60*60*24*30,'y':60*60*24*365}
 disregardtags = ['tagme','commentary','check_commentary','translated','partially_translated','check_translation','annotated','partially_annotated','check_my_note','check_pixiv_source']
 
@@ -263,43 +269,36 @@ def ProcessTimestamp(timestring):
 	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000)
 
 def DateStringInput(string):
-	match = re.match(dateregex,string)
+	match = dateregex.match(string)
 	if match == None:
 		raise argparse.ArgumentTypeError("Date input must be of format 'YYYY-MM-DD'")
-	if (match.group(1) == None) and (match.group(3) == None):
+	if (match.group(1) == None) and (match.group(2) == None):
 		raise argparse.ArgumentTypeError("At least one date must be included")
-	if (match.group(1) != None) and (match.group(3) != None):
-		if time.strptime(match.group(1),'%Y-%m-%d') > time.strptime(match.group(3),'%Y-%m-%d'):
+	if (match.group(1) != None) and (match.group(2) != None):
+		if time.strptime(match.group(1),'%Y-%m-%d') > time.strptime(match.group(2),'%Y-%m-%d'):
 			raise argparse.ArgumentTypeError("1st date must be before 2nd date")
 	return match.group()
 
 def IDStringInput(string):
-	match = re.match(idregex,string)
+	match = idregex.match(string)
 	if match == None:
 		raise argparse.ArgumentTypeError("ID input must be of format 'Start#..End#'")
 	start = int(match.group(1))
 	end = int(match.group(2))
+	
 	if start > end:
 		raise argparse.ArgumentTypeError("Start ID must be less than End ID")
 	return match.group()
 
 def AgeStringInput(string):
-	match = re.match(ageregex,string)
+	match = ageregex.match(string)
 	if match == None:
 		raise argparse.ArgumentTypeError("Age input must be of format 'Start..End'\nValid qualifiers are 's','mi','h','d','w','mo','y'")
-	if match.group(1) == match.group(2) == match.group(4) == match.group(5) == '':
+	if (match.group(1) == None) and (match.group(2) == None):
 		raise argparse.ArgumentTypeError("At least one age specifier must be used")
-	if (match.group(1) == "" and match.group(2) != "") or \
-		(match.group(2) == "" and match.group(1) != "") or \
-		(match.group(4) == "" and match.group(5) != "") or \
-		(match.group(5) == "" and match.group(4) != ""):
-		raise argparse.ArgumentTypeError("Specificers must include both a number and type")
-	if ((match.group(2) != "") and (match.group(2) not in agetypedict)) or \
-		((match.group(5) != "") and (match.group(5) not in agetypedict)):
-		raise argparse.ArgumentTypeError("Invalid specifier type")
-	if ((match.group(1) != "") and (match.group(4) != "")) and \
-		(int(match.group(1)) * agetypedict[match.group(2)]) > (int(match.group(4)) * agetypedict[match.group(5)]):
-		raise argparse.ArgumentTypeError("Start specifier must be less than end specifier")
+	if (match.group(1) != None) and (match.group(2) != None):
+		if (int(re.search(r'[\d]+',match.group(1)).group()) * agetypedict[re.search(r'[^\d]+',match.group(1)).group()]) > (int(re.search(r'[\d]+',match.group(2)).group()) * agetypedict[re.search(r'[^\d]+',match.group(2)).group()]):
+			raise argparse.ArgumentTypeError("Start specifier must be less than end specifier")
 	return match.group()
 
 #POST SPECIFIC FUNCTIONS
@@ -384,7 +383,7 @@ def IsDisregardTag(tagname):
 #DTEXT HELPER FUNCTIONS
 
 def GetWikiLinks(string):
-	return list(map(lambda x:x.lower().replace(' ','_'),re.findall(wikilinkregex,string)))
+	return list(map(lambda x:x.lower().replace(' ','_'),wikilinkregex.findall(string)))
 
 #INTERNAL HELPER FUNCTIONS
 

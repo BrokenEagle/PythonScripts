@@ -2,11 +2,10 @@
 #Include functions that are program independent here
 
 #PYTHON IMPORTS
-import inspect
-import re
 import os
 import sys
 import time
+import inspect
 import urllib.request
 
 #LOCAL GLOBALS
