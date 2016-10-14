@@ -116,12 +116,14 @@ def DownloadFile(localfilepath,serverfilepath):
 						response = urllib.request.urlopen(serverfilepath)
 						if response.status == 200:
 							break
+						if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
+							return -1
+					except urllib.error.HTTPError as inst:
+						response = inst
 					except:
 						print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
-						input()
-						pass
-					if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
-						return -1
+						if not AbortRetryFail(serverfilepath,sys.exc_info()[1]):
+							return -1
 				if not (outfile.write(response.read())):
 					if not AbortRetryFail(localfilepath,outfile):
 						return -1
