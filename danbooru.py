@@ -107,17 +107,17 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 		elif not AbortRetryFail(urlsubmit,(httpresponse.status,httpresponse.reason)):
 			return -1
 
-def GetCurrFilePath(postdict,size="medium"):
+def GetCurrFilePath(postdict,size="medium",directory=""):
 	"""Get filepath for storing server different sized files on local system.
 	Input is a post dictionary obtained from Danbooru with either 'list' or 'show'.
 	"""
 	if size == "small":
-		return workingdirectory + imagefilepath + postdict["md5"] + '.jpg'
+		return workingdirectory + imagefilepath + directory + postdict["md5"] + '.jpg'
 	if size == "medium":
 		fileext = postdict["large_file_url"][postdict["large_file_url"].rfind('.'):]
-		return workingdirectory + imagefilepath + postdict["md5"] + fileext
+		return workingdirectory + imagefilepath + directory + postdict["md5"] + fileext
 	if size == "large":
-		return workingdirectory + imagefilepath + postdict["md5"] + '.' + postdict["file_ext"]
+		return workingdirectory + imagefilepath + directory + postdict["md5"] + '.' + postdict["file_ext"]
 
 def GetServFilePath(postdict,size="medium"):
 	"""Get serverpath for different sized files
@@ -130,10 +130,10 @@ def GetServFilePath(postdict,size="medium"):
 	if size=="large":
 		return booru_domain + postdict["file_url"]
 
-def DownloadPostImage(postdict,size="medium"):
+def DownloadPostImage(postdict,size="medium",directory=""):
 	"""Download a post image from Danbooru"""
 	
-	localfilepath = GetCurrFilePath(postdict,size)
+	localfilepath = GetCurrFilePath(postdict,size,directory)
 	serverfilepath = GetServFilePath(postdict,size)
 	DebugPrintInput(localfilepath,serverfilepath)
 	return DownloadFile(localfilepath,serverfilepath)
@@ -201,11 +201,11 @@ def IDListLoop(type,idlist,iteration,inputs={}):
 
 #LOOP ITERABLES
 
-def DownloadPostImageIteration(post,related=False,size="medium"):
+def DownloadPostImageIteration(post,related=False,size="medium",directory=""):
 	"""To be called with loop construct to download images"""
 	
 	#Download post image from server to local
-	DownloadPostImage(post,size)
+	DownloadPostImage(post,size,directory)
 	
 	#Are we downloading all child/parent posts?
 	if related and (HasChild(post) or HasParent(post)):
