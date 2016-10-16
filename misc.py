@@ -140,7 +140,7 @@ def GetFilename(filepath):
 	return filepath[filepath.rfind('\\')+1:]
 
 def GetHTTPDirectory(webpath):
-	return webpath[:webpath.rfind('/')]
+	return webpath[:webpath.rfind('/')+1]
 
 def GetHTTPFilename(webpath):
 	start = webpath.rfind('/')+1
