@@ -42,8 +42,10 @@ def GetWatchdogInfo(program):
 		exit(-1)
 
 def main(args):
-	TurnDebugOn()
+	#TurnDebugOn()
 	commandline = args.program.split()
+	startup = 1
+	
 	GetWatchdogInfo(commandline[0])
 	
 	print("Starting up",commandline[0])
@@ -52,14 +54,15 @@ def main(args):
 	while True:
 		try:
 			DebugPrint("Polling interval:",args.pollinginterval,"Startup period:",args.startupwait)
-			p.wait(timeout=args.pollinginterval if args.startupwait==0 else args.startupwait)
+			p.wait(timeout=args.pollinginterval if startup==0 else args.startupwait)
 			DebugPrint("\nProgram returned",p.returncode)
 			if not p.returncode:
 				break
-			print("\nRestarting",commandline,"with system exception in",args.exceptionwait,"seconds")
-			time.sleep(args.exceptionwait)
+			print("\nRestarting",commandline[0],"with system exception in",args.exceptionwait,"seconds")
+			time.sleep(args.exceptionwait[0])
 			print("Starting up",commandline)
-			p = StartProcess(args)
+			p = StartProcess(commandline)
+			startup = 1
 		except KeyboardInterrupt:
 			print("Exiting program")
 			p.kill()
@@ -71,8 +74,9 @@ def main(args):
 			if (currenttime - modifiedtime) > args.timeoutwait:
 				print("\nRestarting deadlocked",commandline)
 				p.kill()
-				p = StartProcess(args)
-		args.startupwait = 0
+				p = StartProcess(commandline)
+				startup = 1
+		startup = 0
 
 if __name__ == '__main__':
 	parser = ArgumentParser(description="Monitors other long-running python scripts for a heartbeat")
