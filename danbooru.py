@@ -58,7 +58,8 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 		urlsubmit = urlsubmit % (id,username,apikey)
 	else:
 		urlsubmit = urlsubmit % (username,apikey)
-	urlsubmit += urladdons
+	
+	urlsubmit = JoinArgs(urlsubmit,urladdons)
 	httpmethod = danbooru_ops[opname][1]
 	while True:
 		#Failures occur most often in two places. The first is communicating with Danbooru
@@ -68,7 +69,12 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			httpresponse = urllib.request.urlopen(req)
 			DebugPrintInput(httpresponse.status,httpresponse.reason)
 		except HTTPError as inst:
+			if inst.status == 500 and retry <=2:
+				retry += 1
+				time.sleep(5*retry)
+				continue
 			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
+				retry = 0
 				continue
 			else:
 				return -1
@@ -139,7 +145,7 @@ def DownloadPostImage(postdict,size="medium",directory=""):
 	return DownloadFile(localfilepath,serverfilepath)
 
 def GetPostCount(searchtags):
-	urladd = JoinArgs(GetArgUrl2('tags',searchtags))
+	urladd = GetArgUrl2('tags',searchtags)
 	return SubmitRequest('count','',urladdons=urladd)['counts']['posts']
 
 #LOOP CONSTRUCTS
@@ -222,8 +228,8 @@ def JoinArgs(*args):
 	"""Take multiple URL arguments of form "name=val" and concatenate them together"""
 	string = ''
 	for arg in args:
-		string = string + '&' + arg
-	return string
+		string += arg + '&'
+	return string[:-1]
 
 def GetArgUrl(typename,keyname,data):
 	"""Parameters are for URL arguments as such: typename[keyname]=data or typename=data
@@ -364,7 +370,7 @@ def GetTagCategory(tagname):
 	"""Query danbooru for the category of a tag"""
 	
 	#Send tag query to Danbooru
-	urladd = JoinArgs(GetSearchUrl('name',tagname))
+	urladd = GetSearchUrl('name',tagname)
 	taglist = SubmitRequest('list','tags',urladdons = urladd)
 	
 	#If the length of the list is one, then we found an exact match

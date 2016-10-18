@@ -28,7 +28,7 @@ versionedtypes = ['post','upload','pool','note','artist_commentary','artist','wi
 nonversionedtypes = ['comment','forum_post','forum_topic','post_appeal','bulk_update_request','tag_implication','tag_alias']
 validtypes = versionedtypes + nonversionedtypes
 typeextracolumns = {'post':14,'upload':13,'pool':5,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
-typelimits = {'post':400,'upload':200,'pool':50,'note':200,'artist_commentary':200,'artist':50,'wiki_page':50,'comment':200,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
+typelimits = {'post':400,'upload':200,'pool':50,'note':100,'artist_commentary':100,'artist':50,'wiki_page':50,'comment':100,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
 typetableheaders = {
 	'post':['userid','total','parent','rating','source','+gentag','+chartag','+copytag','+arttag','+emptytag','-gentag','-chartag','-copytag','-arttag','-emptytag','other'],
 	'upload':['userid','total','modbypass','deleted','parent','source','safe','ques','expl','gentag','chartag','copytag','arttag','emptytag','obsolete'],
@@ -589,7 +589,7 @@ def updateartistdata(userid,userdict,currversiondata,priorversiondata):
 	#Done getting all the information from the version info
 	#Now let's search for a corresponding wiki page
 	
-	urladd = JoinArgs(GetSearchUrl('title',currversiondata['name']))
+	urladd = GetSearchUrl('title',currversiondata['name'])
 	
 	#Send API request to Danbooru; response will be an indexed list of dictionaries
 	artistwiki = SubmitRequest('list','wiki_pages',urladdons=urladd)
