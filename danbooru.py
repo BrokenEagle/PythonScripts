@@ -207,8 +207,11 @@ def IDListLoop(type,idlist,iteration,inputs={}):
 
 #LOOP ITERABLES
 
-def DownloadPostImageIteration(post,related=False,size="medium",directory=""):
+def DownloadPostImageIteration(post,related=False,size="medium",directory="",lastid=0):
 	"""To be called with loop construct to download images"""
+	
+	if lastid >= post['id']:
+		return -1
 	
 	#Download post image from server to local
 	DownloadPostImage(post,size,directory)
@@ -228,7 +231,8 @@ def JoinArgs(*args):
 	"""Take multiple URL arguments of form "name=val" and concatenate them together"""
 	string = ''
 	for arg in args:
-		string += arg + '&'
+		if len(arg) > 0:
+			string += arg + '&'
 	return string[:-1]
 
 def GetArgUrl(typename,keyname,data):
