@@ -181,7 +181,7 @@ def main(args):
 if __name__ == '__main__':
 	parser = ArgumentParser(description="Tag Images From Danbooru")
 	group = parser.add_mutually_exclusive_group(required=False)
-	group.add_argument('-d','--date',type=DateStringInput,help="Date of images to tag",)
+	group.add_argument('-d','--date',type=DateStringInput,help="Date of images to tag")
 	group.add_argument('-i','--id',type=IDStringInput,help="ID's of images to tag")
 	group.add_argument('--tags',required=False,default='')
 	parser.add_argument('--nodownload',required=False,action="store_true",default=False)
