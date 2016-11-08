@@ -102,7 +102,7 @@ def CreateOpen(filepath,optype):
 	CreateDirectory(filepath)
 	return open(filepath,optype)
 
-def DownloadFile(localfilepath,serverfilepath):
+def DownloadFile(localfilepath,serverfilepath,headers={}):
 	"""Download a remote file to a local location"""
 	#Create the directory for the local file if it doesn't already exist
 	CreateDirectory(localfilepath)
@@ -112,7 +112,10 @@ def DownloadFile(localfilepath,serverfilepath):
 			with open(localfilepath,'wb') as outfile:
 				while True:
 					try:
-						response = urllib.request.urlopen(serverfilepath)
+						req = urllib.request.Request(serverfilepath)
+						for item in headers:
+							req.add_header(item,headers[item])
+						response = urllib.request.urlopen(req)
 						if response.status == 200:
 							break
 						if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
