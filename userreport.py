@@ -5,6 +5,7 @@
 import os
 import csv
 import sys
+import time
 from argparse import ArgumentParser
 
 #LOCAL IMPORTS
@@ -13,7 +14,7 @@ from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode
 				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff,TouchFile
 from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,GetLimitUrl,GetSearchUrl,ProcessTimestamp,\
 					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload,\
-					IsParentChange,IsSourceChange,IsRatingChange
+					IsParentChange,IsSourceChange,IsRatingChange,DateStringInput
 from myglobal import workingdirectory,datafilepath,csvfilepath
 
 #MODULE GLOBAL VARIABLES
@@ -101,7 +102,13 @@ def main(args):
 				startid = []
 			
 			inputdict['userdict'] = {}
-			inputdict['starttime'] = GetCurrentTime()
+			
+			currenttime = GetCurrentTime()
+			inputtime = time.mktime(time.strptime(args.date,"%Y-%m-%d"))
+			if currenttime < inputtime:
+				inputdict['starttime'] = currenttime
+			else:
+				inputdict['starttime'] = inputtime
 	
 	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
 	if (typename == 'post' or typename == 'upload') and os.path.exists(tagdictfile) and not args.prior: 
@@ -159,7 +166,11 @@ def main(args):
 
 #Loop functions
 
+startedyet = False
+
 def UserReportIteration(item,typename,starttime,userdict,prior,tagdict,**kwargs):
+	global startedyet
+	
 	if typename in versionedtypes:
 		currenttime = ProcessTimestamp(item['updated_at'])
 		userid = item['updater_id']
@@ -167,6 +178,12 @@ def UserReportIteration(item,typename,starttime,userdict,prior,tagdict,**kwargs)
 		currenttime = ProcessTimestamp(item['created_at'])
 		if typename == 'bulk_update_request': userid = item['user_id']
 		else: userid = item['creator_id']
+	
+	if starttime < currenttime:
+		return 0
+	elif startedyet == False:
+		startedyet = True
+		print('S',end='',flush=True)
 	
 	#For post changes, skip all post changes that are uploads
 	if typename == 'post' and (IsUpload(item)):
@@ -232,6 +249,7 @@ def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentda
 		currenttime = ProcessTimestamp(typelist[-1]['updated_at'])
 	elif typename in nonversionedtypes:
 		currenttime = ProcessTimestamp(typelist[-1]['created_at'])
+	DebugPrint(starttime,currenttime)
 	if HasDayPassed(starttime-currenttime,DaysToSeconds(currentday[0])):
 		currentday[0] = int(SecondsToDays(starttime-currenttime))
 		print(currentday[0], end="", flush=True)
@@ -677,7 +695,7 @@ def updatewikipagedata(userid,userdict,currversiondata,priorversiondata):
 	
 	if len(priorversiondata)==0:
 		DebugPrint("Create")
-		userdict[userid][2] += 1
+		userdict[userid][1] += 1
 		return
 	
 	priorversiondata = priorversiondata.pop()
@@ -686,7 +704,7 @@ def updatewikipagedata(userid,userdict,currversiondata,priorversiondata):
 		DebugPrint("Title")
 		dirty = 1
 		userdict[userid][2] += 1
-	if currversiondata['other_names'] != priorversiondata['other_names'] and (artwikiedit==0): #no need to test for art wiki since this can't be modified from artist entry
+	if currversiondata['other_names'] != priorversiondata['other_names'] and (artwikiedit==0):
 		DebugPrint("Original names")
 		dirty = 1
 		userdict[userid][3] += 1
@@ -766,6 +784,7 @@ if __name__ =='__main__':
 						"tag_alias, bulk_update_request, post_appeal, comment")
 	parser.add_argument('--prior',help="Get the prior month",action="store_true",default=False)
 	parser.add_argument('--new', help="Create a new user report",action="store_true",default=False)
+	parser.add_argument('-d','--date',type=DateStringInput,help="Date to start the report",default='2050-01-01')
 	args = parser.parse_args()
 	
 	main(args)
