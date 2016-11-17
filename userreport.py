@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 #LOCAL IMPORTS
 from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
 				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,IsAddItem,IsRemoveItem,IsOrderChange,\
-				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff,TouchFile
+				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff,TouchFile,GetAddItem,GetRemoveItem
 from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,GetLimitUrl,GetSearchUrl,ProcessTimestamp,\
 					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload,\
 					IsParentChange,IsSourceChange,IsRatingChange,DateStringInput
@@ -28,8 +28,8 @@ watchdogfile = workingdirectory + "watchdog.txt"
 versionedtypes = ['post','upload','pool','note','artist_commentary','artist','wiki_page']
 nonversionedtypes = ['comment','forum_post','forum_topic','post_appeal','bulk_update_request','tag_implication','tag_alias']
 validtypes = versionedtypes + nonversionedtypes
-typeextracolumns = {'post':14,'upload':13,'pool':5,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
-typelimits = {'post':400,'upload':200,'pool':50,'note':100,'artist_commentary':100,'artist':50,'wiki_page':50,'comment':100,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
+typeextracolumns = {'post':14,'upload':13,'pool':7,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
+typelimits = {'post':400,'upload':200,'pool':25,'note':100,'artist_commentary':100,'artist':50,'wiki_page':50,'comment':100,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
 typetableheaders = {
 	'post':['userid','total','parent','rating','source','+gentag','+chartag','+copytag','+arttag','+emptytag','-gentag','-chartag','-copytag','-arttag','-emptytag','other'],
 	'upload':['userid','total','modbypass','deleted','parent','source','safe','ques','expl','gentag','chartag','copytag','arttag','emptytag','obsolete'],
@@ -555,17 +555,67 @@ def updatepooldata(userid,userdict,currversiondata,priorversiondata):
 		DebugPrint("Add post")
 		dirty = 1
 		userdict[userid][2] += 1
+		
+		obsolete = GetObsoleteAdd(currversiondata,GetAddItem(prepoollist,postpoollist))
+		if obsolete > 0:
+			DebugPrint("Obsolete Add")
+			userdict[userid][5] += 1
 	if IsRemoveItem(prepoollist,postpoollist):
 		DebugPrint("Remove post")
 		dirty = 1
 		userdict[userid][3] += 1
+		
+		obsolete = GetObsoleteRemove(currversiondata,GetRemoveItem(prepoollist,postpoollist))
+		if obsolete > 0:
+			DebugPrint("Obsolete Remove")
+			userdict[userid][6] += obsolete
 	if IsOrderChange(prepoollist,postpoollist):
 		DebugPrint("Order change")
 		dirty = 1
 		userdict[userid][4] += 1
 	if dirty == 0:
 		DebugPrint("Other")
-		userdict[userid][5] += 1
+		userdict[userid][7] += 1
+	
+	DebugPrintInput('----------')
+
+def GetObsoleteAdd(currversion,postlist):
+	startid = [GetPageUrl(currversion['id'],above=True)]
+	urladds = [GetSearchUrl('pool_id',currversion['pool_id'])]
+	inputdict = {'postlist':[postlist],'obsolete':[0]}
+	IDPageLoop('pool_versions',100,GetObsoleteAddIterator,firstloop=startid,addonlist=urladds,inputs=inputdict,reverselist=True)
+	return inputdict['obsolete'][0]
+
+def GetObsoleteAddIterator(poolver,postlist,obsolete):
+	poolidlist = list(map(int,poolver['post_ids'].split()))
+	templist=postlist[0]
+	for i in reversed(range(0,len(postlist[0]))):
+		if postlist[0][i] not in poolidlist:
+			obsolete[0] += 1
+			templist.pop(i)
+	postlist[0] = templist
+	if len(postlist[0]) == 0:
+		return -1
+	return 0
+
+def GetObsoleteRemove(currversion,postlist):
+	startid = [GetPageUrl(currversion['id'],above=True)]
+	urladds = [GetSearchUrl('pool_id',currversion['pool_id'])]
+	inputdict = {'postlist':[postlist],'obsolete':[0]}
+	IDPageLoop('pool_versions',100,GetObsoleteRemoveIterator,firstloop=startid,addonlist=urladds,inputs=inputdict,reverselist=True)
+	return inputdict['obsolete'][0]
+
+def GetObsoleteRemoveIterator(poolver,postlist,obsolete):
+	poolidlist = list(map(int,poolver['post_ids'].split()))
+	templist=postlist[0]
+	for i in reversed(range(0,len(postlist[0]))):
+		if postlist[0][i] in poolidlist:
+			obsolete[0] += 1
+			templist.pop(i)
+	postlist[0] = templist
+	if len(postlist[0]) == 0:
+		return -1
+	return 0
 
 #ARTIST SPECIFIC FUNCTIONS
 
