@@ -83,12 +83,18 @@ def IsOrderChange(prelist,postlist):
 def IsAddItem(prelist,postlist):
 	"""Has an element been added between pre/post list"""
 	
-	return len(set(postlist).difference(prelist)) > 0
+	return len(GetAddItem(prelist,postlist)) > 0
+
+def GetAddItem(prelist,postlist):
+	return list(set(postlist).difference(prelist))
 
 def IsRemoveItem(prelist,postlist):
 	"""Has an element been removed between pre/post list"""
 	
-	return len(set(prelist).difference(postlist)) > 0
+	return len(GetRemoveItem(prelist,postlist)) > 0
+
+def GetRemoveItem(prelist,postlist):
+	return list(set(prelist).difference(postlist))
 
 #IO/String functions
 
