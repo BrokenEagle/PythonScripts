@@ -150,7 +150,7 @@ def GetPostCount(searchtags):
 
 #LOOP CONSTRUCTS
 
-def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction):
+def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,reverselist=False):
 	"""Standard loop using 'ID' pages to iterate
 	'firstloop' is for types that require the pageID to sort properly, e.g. forum topics,
 	or for continuing from the last saved location, such as in the case of a crash
@@ -161,14 +161,21 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
 		typelist = SubmitRequest('list',type,urladdons=urladd)
 		if len(typelist) == 0:
 			return currentid
-		for item in typelist:
+		if reverselist:
+			iteratelist = reversed(typelist)
+		else:
+			iteratelist = typelist
+		for item in iteratelist:
 			currentid = item['id']
 			if iteration(item,**inputs) < 0:
 				return currentid
 		if len(typelist) < limit:
 			return currentid
 		postprocess(typelist,**inputs)
-		urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid),*addonlist)
+		if reverselist:
+			urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid,above=True),*addonlist)
+		else:
+			urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid),*addonlist)
 		print(':', end="", flush=True)
 
 def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=BlankFunction):
@@ -218,12 +225,34 @@ def DownloadPostImageIteration(post,related=False,size="medium",directory="",las
 	
 	#Are we downloading all child/parent posts?
 	if related and (HasChild(post) or HasParent(post)):
-		totaldownloaded = len(DownloadRelatedPostImages(post,post['id']))
+		totaldownloaded = len(DownloadRelatedPostImages(post,[post['id']]))
 		print("(R%d)" % totaldownloaded,end="",flush=True)
 	
 	#Print some feedback
 	print('.', end="", flush=True)
 	return 0
+
+def DownloadRelatedPostImages(post,alreadydownloaded):
+	"""Recursively download all child and parent images"""
+	
+	#Download any parent posts
+	if HasParent(post) and (post['parent_id'] not in alreadydownloaded):
+		parent = SubmitRequest('show','posts',id=post['parent_id'])
+		DownloadPostImage(parent)
+		alreadydownloaded += [parent['id']]
+		alreadydownloaded = DownloadRelatedPostImages(parent,alreadydownloaded)
+	
+	#Download any child posts
+	if HasChild(post):
+		urladd = JoinArgs(GetArgUrl2('tags',"parent:%d" % post['id']))
+		childlist = SubmitRequest('list','posts',urladdons=urladd)
+		for child in childlist:
+			if child['id'] not in alreadydownloaded:
+				DownloadPostImage(child)
+				alreadydownloaded += [child['id']]
+				alreadydownloaded = DownloadRelatedPostImages(child,alreadydownloaded)
+	
+	return alreadydownloaded
 
 #EXTERNAL HELPER FUNCTIONS
 
@@ -250,9 +279,12 @@ def GetArgUrl2(typename,data):
 def GetArgUrl3(typename,keyname,data):
 	return GetArgUrl(typename,keyname,data)
 
-def GetPageUrl(id):
+def GetPageUrl(id,above=False):
 	"""Get the page argument for all ID's below the parameter 'id'"""
-	return GetArgUrl2('page','b'+str(id))
+	if above:
+		return GetArgUrl2('page','a'+str(id))
+	else:
+		return GetArgUrl2('page','b'+str(id))
 
 def GetLimitUrl(limit):
 	return GetArgUrl2('limit',limit)
@@ -276,7 +308,7 @@ def JoinData(*args):
 
 def ProcessTimestamp(timestring):
 	datetuple = datetime.strptime(timestring,"%Y-%m-%dT%H:%M:%S.%fZ")
-	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000)
+	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000) - (3600 * 5)
 
 def DateStringInput(string):
 	match = dateregex.match(string)
