@@ -128,15 +128,18 @@ def DownloadFile(localfilepath,serverfilepath,headers={}):
 							return -1
 					except urllib.error.HTTPError as inst:
 						response = inst
+						print(response.status,response.reason)
+						return -1
 					except:
 						print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
-						if not AbortRetryFail(serverfilepath,sys.exc_info()[1]):
+						if not AbortRetryFail(serverfilepath,sys.exc_info()[1],localfilepath,serverfilepath,headers):
 							return -1
 				if not (outfile.write(response.read())):
 					if not AbortRetryFail(localfilepath,outfile):
 						return -1
 				else:
 					return 0
+	return 0
 
 def TouchFile(fname, times=None):
 	with open(fname, 'a'):
@@ -200,25 +203,37 @@ def GetCurrentTime():
 	return time.time()
 
 def HasMonthPassed(starttime,endtime,num=1):
-	return (((starttime - endtime)/(60*60*24*30*num)) > 1.0)
+	return (((starttime - endtime)/MonthsToSeconds(num)) > 1.0)
 
 def HasWeekPassed(starttime,endtime,num=1):
-	return (((starttime - endtime)/(60*60*24*7*num)) > 1.0)
+	return (((starttime - endtime)/WeeksToSeconds(num)) > 1.0)
 
 def HasDayPassed(starttime,endtime,num=1):
-	return (((starttime - endtime)/(60*60*24*num)) > 1.0)
+	return (((starttime - endtime)/DaysToSeconds(num)) > 1.0)
 
 def HasHourPassed(starttime,endtime,num=1):
-	return (((starttime - endtime)/(60*60*num)) > 1.0)
+	return (((starttime - endtime)/HoursToSeconds(num)) > 1.0)
 
 def WithinOneSecond(starttime,endtime):
 	return ((abs(starttime-endtime)) < 1.0)
+
+def MonthsToSeconds(intime):
+	return (intime * 60*60*24*30)
+
+def WeeksToSeconds(intime):
+	return (intime * 60*60*24*7)
 
 def DaysToSeconds(intime):
 	return (intime * 60*60*24)
 
 def HoursToSeconds(intime):
 	return (intime * 60*60)
+
+def SecondsToMonths(intime):
+	return intime / (60*60*24*30)
+
+def SecondsToWeeks(intime):
+	return intime / (60*60*24*7)
 
 def SecondsToDays(intime):
 	return intime / (60*60*24)
