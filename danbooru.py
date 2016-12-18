@@ -308,7 +308,7 @@ def JoinData(*args):
 
 def ProcessTimestamp(timestring):
 	datetuple = datetime.strptime(timestring,"%Y-%m-%dT%H:%M:%S.%fZ")
-	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000) - (3600 * 5)
+	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000)
 
 def DateStringInput(string):
 	match = dateregex.match(string)
@@ -320,6 +320,18 @@ def DateStringInput(string):
 		if time.strptime(match.group(1),'%Y-%m-%d') > time.strptime(match.group(2),'%Y-%m-%d'):
 			raise argparse.ArgumentTypeError("1st date must be before 2nd date")
 	return match.group()
+
+def TimestampInput(string):
+	try:
+		stringlist = string.split('..')
+		timelist = [0,0]
+		#print(stringlist)
+		for i in range(0,len(stringlist)):
+			#print(stringlist[i])
+			timelist[i] = ProcessTimestamp(stringlist[i])
+	except:
+		raise argparse.ArgumentTypeError("Invalid timestamp input'")
+	return timelist
 
 def IDStringInput(string):
 	match = idregex.match(string)
