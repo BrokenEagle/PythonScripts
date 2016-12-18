@@ -11,10 +11,11 @@ from argparse import ArgumentParser
 #LOCAL IMPORTS
 from misc import PutGetData,PutGetUnicode,DebugPrint,DebugPrintInput,FindUnicode,MakeUnicodePrintable,\
 				HasMonthPassed,HasDayPassed,DaysToSeconds,SecondsToDays,IsAddItem,IsRemoveItem,IsOrderChange,\
-				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff,TouchFile,GetAddItem,GetRemoveItem
+				WithinOneSecond,GetCurrentTime,TurnDebugOn,TurnDebugOff,TouchFile,GetAddItem,GetRemoveItem,\
+				MonthsToSeconds,SafePrint
 from danbooru import SubmitRequest,IDPageLoop,JoinArgs,GetArgUrl2,GetPageUrl,GetLimitUrl,GetSearchUrl,ProcessTimestamp,\
 					GetTagCategory,IsDisregardTag,MetatagExists,SourceExists,ParentExists,RatingExists,IsUpload,\
-					IsParentChange,IsSourceChange,IsRatingChange,DateStringInput
+					IsParentChange,IsSourceChange,IsRatingChange,DateStringInput,TimestampInput
 from myglobal import workingdirectory,datafilepath,csvfilepath
 
 #MODULE GLOBAL VARIABLES
@@ -29,7 +30,7 @@ versionedtypes = ['post','upload','pool','note','artist_commentary','artist','wi
 nonversionedtypes = ['comment','forum_post','forum_topic','post_appeal','bulk_update_request','tag_implication','tag_alias']
 validtypes = versionedtypes + nonversionedtypes
 typeextracolumns = {'post':14,'upload':13,'pool':7,'note':7,'artist_commentary':6,'artist':9,'wiki_page':5,'comment':6,'forum_post':1,'forum_topic':1,'post_appeal':1,'bulk_update_request':2,'tag_implication':1,'tag_alias':1}
-typelimits = {'post':400,'upload':200,'pool':25,'note':100,'artist_commentary':100,'artist':50,'wiki_page':50,'comment':100,'forum_post':50,'forum_topic':50,'post_appeal':50,'bulk_update_request':50,'tag_implication':50,'tag_alias':50}
+typelimits = {'post':200,'upload':100,'pool':10,'note':25,'artist_commentary':25,'artist':10,'wiki_page':10,'comment':50,'forum_post':10,'forum_topic':10,'post_appeal':10,'bulk_update_request':10,'tag_implication':10,'tag_alias':10}
 typetableheaders = {
 	'post':['userid','total','parent','rating','source','+gentag','+chartag','+copytag','+arttag','+emptytag','-gentag','-chartag','-copytag','-arttag','-emptytag','other'],
 	'upload':['userid','total','modbypass','deleted','parent','source','safe','ques','expl','gentag','chartag','copytag','arttag','emptytag','obsolete'],
@@ -74,13 +75,14 @@ def main(args):
 		currentuserdictfile = prioruserdictfile
 		if os.path.exists(prioruserdictfile) and not args.new:
 			print("Opening",prioruserdictfile)
-			startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(prioruserdictfile,'r')
+			startid,inputdict['starttime'],inputdict['endtime'],inputdict['userdict'] = PutGetData(prioruserdictfile,'r')
 			
 			#Continue from the last saved location
 		else:
 			print("Opening",userdictfile)
-			startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
-			inputdict['starttime'] -= DaysToSeconds(30)
+			startid,inputdict['starttime'],inputdict['endtime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
+			inputdict['starttime'] -= MonthsToSeconds(1)
+			inputdict['endtime'] -= MonthsToSeconds(1)
 			inputdict['userdict'] = {}
 		
 		startid = [GetPageUrl(startid)]
@@ -88,7 +90,7 @@ def main(args):
 		currentuserdictfile = userdictfile
 		if os.path.exists(userdictfile) and not args.new:
 			print("Opening",userdictfile)
-			startid,inputdict['starttime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
+			startid,inputdict['starttime'],inputdict['endtime'],inputdict['userdict'] = PutGetData(userdictfile,'r')
 			
 			#Continue from the last saved location
 			startid = [GetPageUrl(startid)]
@@ -103,12 +105,15 @@ def main(args):
 			
 			inputdict['userdict'] = {}
 			
-			currenttime = GetCurrentTime()
-			inputtime = time.mktime(time.strptime(args.date,"%Y-%m-%d"))
-			if currenttime < inputtime:
-				inputdict['starttime'] = currenttime
+			if args.timestamp != None:
+				inputdict['starttime'] = args.timestamp[0]
+				inputdict['endtime'] = args.timestamp[1]
 			else:
-				inputdict['starttime'] = inputtime
+				if args.date != None:
+					inputdict['starttime'] = time.mktime(time.strptime(args.date,"%Y-%m-%d"))
+				else:
+					inputdict['starttime'] = GetCurrentTime()
+				inputdict['endtime'] = inputdict['starttime'] - MonthsToSeconds(1)
 	
 	#'post' and 'upload' use a tag dictionary to check tag type (i.e. general, artist, character, copyright, empty)
 	if (typename == 'post' or typename == 'upload') and os.path.exists(tagdictfile) and not args.prior: 
@@ -152,7 +157,7 @@ def main(args):
 	#Now that we're done, let's do one last final save
 	if (typename == 'post' or typename=='upload') and not args.prior:
 		PutGetUnicode(tagdictfile,'w',inputdict['tagdict'])
-	PutGetData(currentuserdictfile,'w',[lastid,inputdict['starttime'],inputdict['userdict']])
+	PutGetData(currentuserdictfile,'w',[lastid,inputdict['starttime'],inputdict['endtime'],inputdict['userdict']])
 	
 	if not args.prior:
 		#As a final act, also write a CSV file
@@ -168,17 +173,18 @@ def main(args):
 
 startedyet = False
 
-def UserReportIteration(item,typename,starttime,userdict,prior,tagdict,**kwargs):
+def UserReportIteration(item,typename,starttime,endtime,userdict,prior,tagdict,**kwargs):
 	global startedyet
 	
 	if typename in versionedtypes:
-		currenttime = ProcessTimestamp(item['updated_at'])
+		timestamp = item['updated_at']
 		userid = item['updater_id']
 	elif typename in nonversionedtypes:
-		currenttime = ProcessTimestamp(item['created_at'])
+		timestamp = item['created_at']
 		if typename == 'bulk_update_request': userid = item['user_id']
 		else: userid = item['creator_id']
 	
+	currenttime = ProcessTimestamp(timestamp)
 	if starttime < currenttime:
 		return 0
 	elif startedyet == False:
@@ -194,7 +200,7 @@ def UserReportIteration(item,typename,starttime,userdict,prior,tagdict,**kwargs)
 		return 0
 	
 	#Main exit condition
-	if HasMonthPassed(starttime,currenttime):
+	if endtime > currenttime:
 		return -1
 	
 	#For each instance found, update user Totals column count
@@ -232,16 +238,16 @@ def UserReportIteration(item,typename,starttime,userdict,prior,tagdict,**kwargs)
 		updatetagaliasimplicationdata(userid,userdict,item)
 	else:
 		updateextradata(userid,userdict,item,typename)
-	
+	DebugPrintInput('----------')
 	return 0
 
-def UserReportPostprocess(typelist,typename,starttime,userdict,tagdict,currentday,prior,**kwargs):
+def UserReportPostprocess(typelist,typename,starttime,endtime,userdict,tagdict,currentday,prior,**kwargs):
 	#Save tag dictionary at this point for 'upload'
 	if (typename == 'post' or typename=='upload') and not prior:
 		PutGetUnicode(tagdictfile,'w',tagdict)
 	
 	#Also save the user data at this point
-	PutGetData(currentuserdictfile,'w',[typelist[-1]['id'],starttime,userdict])
+	PutGetData(currentuserdictfile,'w',[typelist[-1]['id'],starttime,endtime,userdict])
 	TouchFile(watchdogfile)
 	
 	#Print some extra screen feedback so we know where we're at
@@ -371,8 +377,6 @@ def updatepostdata(userid,userdict,typeinfo,tagdict):
 	if dirty == 0:
 		DebugPrint("Other")
 		userdict[userid][14] += 1
-	
-	DebugPrintInput('----------')
 
 #UPLOAD SPECIFIC FUNCTIONS
 
@@ -500,8 +504,6 @@ def updatenotedata(userid,userdict,currversiondata,priorversiondata):
 	if dirty == 0:
 		DebugPrint("Other")
 		userdict[userid][7] += 1
-	
-	DebugPrintInput('----------')
 
 #ARTIST COMMENTARY SPECIFIC FUNCTIONS
 
@@ -534,8 +536,6 @@ def updatecommentarydata(userid,userdict,currversiondata,priorversiondata):
 	if dirty == 0:
 		DebugPrint("Other")
 		userdict[userid][6] += 1
-	
-	DebugPrintInput('----------')
 
 #POOL SPECIFIC FUNCTIONS
 
@@ -576,8 +576,6 @@ def updatepooldata(userid,userdict,currversiondata,priorversiondata):
 	if dirty == 0:
 		DebugPrint("Other")
 		userdict[userid][7] += 1
-	
-	DebugPrintInput('----------')
 
 def GetObsoleteAdd(currversion,postlist):
 	startid = [GetPageUrl(currversion['id'],above=True)]
@@ -671,7 +669,7 @@ def updateartistdata(userid,userdict,currversiondata,priorversiondata):
 		#Search through the list wiki page versions
 		#NOTE: 	Being lazy and searching with a high limit instead of handling page crossings
 		#		Will fail if the number of versions created in the last month is very large
-		urladd = JoinArgs(GetSearchUrl('wiki_page',artistwiki['id']),GetLimitUrl(typelimits['wiki_page']))
+		urladd = JoinArgs(GetSearchUrl('wiki_page_id',artistwiki['id']),GetLimitUrl(typelimits['wiki_page']))
 		
 		#Send API request to Danbooru; response will be an indexed list of dictionaries
 		wikiversionlist = SubmitRequest('list','wiki_page_versions',urladdons=urladd)
@@ -697,8 +695,6 @@ def updateartistdata(userid,userdict,currversiondata,priorversiondata):
 	if dirty == 0:
 		DebugPrint("Other")
 		userdict[userid][9] += 1
-	
-	DebugPrintInput('----------')
 
 #WIKI PAGE SPECIFIC FUNCTIONS
 
@@ -765,8 +761,6 @@ def updatewikipagedata(userid,userdict,currversiondata,priorversiondata):
 	if (dirty == 0):
 		DebugPrint("Other change")
 		userdict[userid][5] += 1
-	
-	DebugPrintInput("-------")
 
 #NONVERSIONED SPECIFIC FUNCTIONS
 
@@ -788,15 +782,11 @@ def updatecommentdata(userid,userdict,typeentry):
 	if typeentry['is_deleted'] == True:
 		DebugPrint("Comment delete")
 		userdict[userid][6] += 1
-	
-	DebugPrintInput("-------")
 
 def updateforumpostdata(userid,userdict,typeentry):
 	if ProcessTimestamp(typeentry['created_at']) != (ProcessTimestamp(typeentry['updated_at'])):
 		DebugPrint("Forum update")
 		userdict[userid][1] += 1
-	
-	DebugPrintInput("-------")
 
 def updateforumtopicdata(userid,userdict,typeentry):
 	userdict[userid][1] += typeentry['response_count']	#total replies
@@ -807,15 +797,11 @@ def updatepostappealdata(userid,userdict,typeentry):
 	if typeentry['is_resolved']==True:
 		DebugPrint("Unsuccessful")
 		userdict[userid][1] += 1
-	
-	DebugPrintInput("-------")
 
 def updatetagaliasimplicationdata(userid,userdict,typeentry):
 	if typeentry['status']=='active':
 		DebugPrint("Approved")
 		userdict[userid][1] += 1
-	
-	DebugPrintInput("-------")
 
 def updatebulkupdaterequestdata(userid,userdict,typeentry):
 	if typeentry['status']=='approved':
@@ -824,8 +810,6 @@ def updatebulkupdaterequestdata(userid,userdict,typeentry):
 	elif typeentry['status']=='rejected':
 		DebugPrint("Rejected")
 		userdict[userid][2] += 1
-	
-	DebugPrintInput("-------")
 
 if __name__ =='__main__':
 	parser = ArgumentParser(description="Generate a Danbooru User Report")
@@ -834,7 +818,8 @@ if __name__ =='__main__':
 						"tag_alias, bulk_update_request, post_appeal, comment")
 	parser.add_argument('--prior',help="Get the prior month",action="store_true",default=False)
 	parser.add_argument('--new', help="Create a new user report",action="store_true",default=False)
-	parser.add_argument('-d','--date',type=DateStringInput,help="Date to start the report",default='2050-01-01')
+	parser.add_argument('-d','--date',type=DateStringInput,help="Date to start the report")
+	parser.add_argument('-t','--timestamp',type=TimestampInput,help="Timestamp ranges for the report")
 	args = parser.parse_args()
 	
 	main(args)
