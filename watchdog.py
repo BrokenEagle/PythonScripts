@@ -59,7 +59,7 @@ def main(args):
 			if not p.returncode:
 				break
 			print("\nRestarting",commandline[0],"with system exception in",args.exceptionwait,"seconds")
-			time.sleep(args.exceptionwait[0])
+			time.sleep(args.exceptionwait)
 			print("Starting up",commandline)
 			p = StartProcess(commandline)
 			startup = 1
@@ -76,6 +76,7 @@ def main(args):
 				p.kill()
 				p = StartProcess(commandline)
 				startup = 1
+				continue
 		startup = 0
 
 if __name__ == '__main__':
