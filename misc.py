@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import inspect
+import hashlib
 import urllib.request
 
 #LOCAL GLOBALS
@@ -41,6 +42,11 @@ def AbortRetryFail(*args):
 			return True
 		if keyinput.lower() == 'f':
 			sys.exit(-1)
+
+def GetBufferChecksum(buffer):
+	hasher = hashlib.md5()
+	hasher.update(buffer)
+	return hasher.hexdigest()
 
 #List functions
 
@@ -108,7 +114,7 @@ def CreateOpen(filepath,optype):
 	CreateDirectory(filepath)
 	return open(filepath,optype)
 
-def DownloadFile(localfilepath,serverfilepath,headers={}):
+def DownloadFile(localfilepath,serverfilepath,headers={},timeout=60):
 	"""Download a remote file to a local location"""
 	#Create the directory for the local file if it doesn't already exist
 	CreateDirectory(localfilepath)
@@ -121,7 +127,7 @@ def DownloadFile(localfilepath,serverfilepath,headers={}):
 						req = urllib.request.Request(serverfilepath)
 						for item in headers:
 							req.add_header(item,headers[item])
-						response = urllib.request.urlopen(req)
+						response = urllib.request.urlopen(req,timeout=timeout)
 						if response.status == 200:
 							break
 						if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
@@ -256,6 +262,12 @@ def TurnDebugOff(modulename=None):
 	if modulename==None:
 		modulename = GetCallerModule(2).f_globals['__name__']
 	temp = debugModule.pop(modulename)
+
+def GetLineNumber():
+	return inspect.getframeinfo(GetCallerModule(2)).lineno
+
+def GetFileName():
+	return GetFilename(inspect.getframeinfo(GetCallerModule(2)).filename)
 
 def DebugPrintInput(*args,**kwargs):
 	if GetCallerModule(2).f_globals['__name__'] in debugModule:
