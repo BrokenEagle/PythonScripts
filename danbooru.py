@@ -11,6 +11,7 @@ import argparse
 import urllib.request
 import urllib.parse
 from urllib.error import HTTPError
+import requests
 
 #MY IMPORTS
 from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction
@@ -69,9 +70,9 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			httpresponse = urllib.request.urlopen(req)
 			DebugPrintInput(httpresponse.status,httpresponse.reason)
 		except HTTPError as inst:
-			if inst.status == 500 and retry <=2:
+			if (inst.status >= 500 or inst.status < 600) and retry <=2:
 				retry += 1
-				time.sleep(5*retry)
+				time.sleep(5*(retry+1))
 				continue
 			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
 				retry = 0
@@ -148,6 +149,44 @@ def GetPostCount(searchtags):
 	urladd = GetArgUrl2('tags',searchtags)
 	return SubmitRequest('count','',urladdons=urladd)['counts']['posts']
 
+def CheckIQDBUrl(checkurl):
+	while True:
+		iqdbresp = requests.post("http://danbooru.donmai.us/iqdb_queries?login=%s&api_key=%s&url=%s" % (username,apikey,checkurl))
+		if iqdbresp.status_code != 200:
+			if iqdbresp.status_code == 404:
+				return -1
+			elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
+				print("Server error! Sleeping 30 seconds...")
+				time.sleep(30)
+				continue
+			else:
+				print("Server error!",checkurl,iqdbresp.status_code,iqdbresp.reason)
+				exit(-1)
+		break
+	return list(map(int,re.findall(r'data-id="([^"]+)"',iqdbresp.text)))
+
+def CheckIQDBPost(checkid):
+	while True:
+		iqdbresp = requests.post("http://danbooru.donmai.us/iqdb_queries?login=%s&api_key=%s&post_id=%d" % (username,apikey,checkid))
+		if iqdbresp.status_code != 200:
+			if iqdbresp.status_code == 404:
+				return -1
+			elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
+				print("Server error! Sleeping 30 seconds...")
+				time.sleep(30)
+				continue
+			else:
+				print("Server error!",checkid,iqdbresp.status_code,iqdbresp.reason)
+				exit(-1)
+		break
+	return list(map(int,re.findall(r'data-id="([^"]+)"',iqdbresp.text.replace('\\"','"'))))
+
+def PostChangeTags(post,tagarray):
+	addtags = ' '.join(tagarray)
+	putdata = EncodeData('post','tag_string',post['tag_string']+' '+addtags)
+	SubmitRequest('update','posts',id=post['id'],senddata=putdata)
+	print('.', end="", flush=True)
+
 #LOOP CONSTRUCTS
 
 def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,reverselist=False):
@@ -198,9 +237,9 @@ def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=B
 		idseen = idlist; page += 1
 		print(':', end="", flush=True)
 
-def IDListLoop(type,idlist,iteration,inputs={}):
+def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
 	"""Standard loop iterating through a list of IDs"""
-	
+	counter = 1
 	for num in idlist:
 		item = SubmitRequest('show',type,id=num)
 		if len(item) == 0:
@@ -210,7 +249,10 @@ def IDListLoop(type,idlist,iteration,inputs={}):
 			return
 		elif ret > 0:
 			continue
-		print('.', end="", flush=True)
+		if (counter % limit) == 0:
+			postprocess([],**inputs)
+			print(':', end="", flush=True)
+		counter += 1
 
 #LOOP ITERABLES
 
