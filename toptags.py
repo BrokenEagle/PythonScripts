@@ -1,4 +1,6 @@
-#temp2.py
+#TOPTAGS.PY
+"""Calculate tag metrics per user"""
+
 #PYTHON IMPORTS
 import os
 import csv
