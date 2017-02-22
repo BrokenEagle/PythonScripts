@@ -48,6 +48,20 @@ def GetBufferChecksum(buffer):
 	hasher.update(buffer)
 	return hasher.hexdigest()
 
+def RepresentsInt(s):
+	try: 
+		int(s)
+		return True
+	except ValueError:
+		return False
+
+def StaticVars(**kwargs):
+	def decorate(func):
+		for k in kwargs:
+			setattr(func, k, kwargs[k])
+		return func
+	return decorate
+
 #List functions
 
 def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
@@ -134,7 +148,11 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=60):
 							return -1
 					except urllib.error.HTTPError as inst:
 						response = inst
-						print(response.status,response.reason)
+						if response.status >= 500 and response.status < 600:
+							print("Server Error! Sleeping 30 seconds...")
+							time.sleep(30)
+							continue
+						print(serverfilepath,response.status,response.reason)
 						return -1
 					except:
 						print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
@@ -166,6 +184,9 @@ def GetHTTPFilename(webpath):
 	end = isextras if isextras > 0 else len(webpath)+1
 	return webpath[start:end]
 
+def GetFileExtension(filepath):
+	return filepath[filepath.rfind('.')+1:]
+
 def PutGetRaw(filepath,optype,data=None):
 	CreateDirectory(filepath)
 	with open(filepath, optype) as f:
@@ -186,6 +207,18 @@ def PutGetUnicode(filepath,optype,data=None):
 	elif optype[0] == 'r':
 		return eval((PutGetRaw(filepath,optype[0]+'b')).decode('UTF'))
 
+def LoadInitialValues(file,defaultvalues=None,unicode=False):
+		if os.path.exists(file):
+			print("Opening",file)
+			if unicode: 
+				return PutGetUnicode(file,'r')
+			return PutGetData(file,'r')
+		elif defaultvalues==None:
+			print(file,"not found")
+			exit(-1)
+		else:
+			return defaultvalues
+
 def WriteUnicode(outfile,string):
 	outfile.write(string.encode('UTF'))
 
@@ -203,10 +236,16 @@ def MakeUnicodePrintable(string):
 		string = string[:ret] + hex(ord(string[ret])) + string[ret+1:]
 	return string
 
+def PrintChar(char):
+	print(char, end="", flush=True)
+
 #Time functions
 
 def GetCurrentTime():
 	return time.time()
+
+def GetCurrentTimeZulu():
+	return time.mktime(time.gmtime())
 
 def HasMonthPassed(starttime,endtime,num=1):
 	return (((starttime - endtime)/MonthsToSeconds(num)) > 1.0)
@@ -274,9 +313,12 @@ def DebugPrintInput(*args,**kwargs):
 		print(*args,**kwargs)
 		input()
 
-def DebugPrint(*args,**kwargs):
+def DebugPrint(*args,safe=False,**kwargs):
 	if GetCallerModule(2).f_globals['__name__'] in debugModule:
-		print(*args,**kwargs)
+		if safe:
+			SafePrint(*args,**kwargs)
+		else:
+			print(*args,**kwargs)
 
 def SafePrint(*args,**kwargs):
 	temp = ''
