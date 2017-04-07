@@ -12,9 +12,10 @@ import urllib.request
 import urllib.parse
 from urllib.error import HTTPError
 import requests
+import iso8601
 
-#MY IMPORTS
-from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction
+#LOCAL IMPORTS
+from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction,PrintChar
 from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
 #LOCAL GLOBALS
@@ -91,7 +92,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 			print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
 			raise
 		#Success, and the server returned something to evaluate
-		if httpresponse.status == 200:
+		if httpresponse.status in [200,201]:
 			#The second most common error is evaluating the response from Danbooru.
 			#If the response is particularly large, the following will hang.
 			#This can be detected by the printing of "Before Eval" without the subsequent "After Eval"
@@ -150,18 +151,22 @@ def GetPostCount(searchtags):
 	return SubmitRequest('count','',urladdons=urladd)['counts']['posts']
 
 def CheckIQDBUrl(checkurl):
+	retry = 0
 	while True:
-		iqdbresp = requests.post("http://danbooru.donmai.us/iqdb_queries?login=%s&api_key=%s&url=%s" % (username,apikey,checkurl))
+		iqdbresp = requests.post(booru_domain + '/iqdb_queries'+JoinArgs(danbooru_auth%(username,apikey),GetArgUrl2('url',checkurl)))
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
 				return -1
 			elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
+				if retry >= 2:
+					return iqdbresp
 				print("Server error! Sleeping 30 seconds...")
 				time.sleep(30)
+				retry += 1
 				continue
 			else:
 				print("Server error!",checkurl,iqdbresp.status_code,iqdbresp.reason)
-				exit(-1)
+				return -1
 		break
 	return list(map(int,re.findall(r'data-id="([^"]+)"',iqdbresp.text)))
 
@@ -185,7 +190,7 @@ def PostChangeTags(post,tagarray):
 	addtags = ' '.join(tagarray)
 	putdata = EncodeData('post','tag_string',post['tag_string']+' '+addtags)
 	SubmitRequest('update','posts',id=post['id'],senddata=putdata)
-	print('.', end="", flush=True)
+	PrintChar('.')
 
 #LOOP CONSTRUCTS
 
@@ -199,6 +204,7 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
 	while True:
 		typelist = SubmitRequest('list',type,urladdons=urladd)
 		if len(typelist) == 0:
+			postprocess(typelist,**inputs)
 			return currentid
 		if reverselist:
 			iteratelist = reversed(typelist)
@@ -207,15 +213,17 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
 		for item in iteratelist:
 			currentid = item['id']
 			if iteration(item,**inputs) < 0:
+				postprocess(typelist,**inputs)
 				return currentid
 		if len(typelist) < limit:
+			postprocess(typelist,**inputs)
 			return currentid
 		postprocess(typelist,**inputs)
 		if reverselist:
 			urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid,above=True),*addonlist)
 		else:
 			urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid),*addonlist)
-		print(':', end="", flush=True)
+		PrintChar(':')
 
 def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=BlankFunction):
 	"""Standard loop using page numbers to iterate"""
@@ -225,6 +233,7 @@ def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=B
 		urladd = JoinArgs(GetLimitUrl(limit),GetPageNumUrl(page),*addonlist)
 		typelist = SubmitRequest('list',type,urladdons=urladd)
 		if len(typelist) == 0:
+			postprocess(typelist,**inputs)
 			return page
 		idlist = []
 		for item in typelist:
@@ -232,10 +241,11 @@ def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=B
 				continue
 			idlist += [item['id']]
 			if iteration(item,**inputs) < 0:
+				postprocess(typelist,**inputs)
 				return page
 		postprocess(typelist,**inputs)
 		idseen = idlist; page += 1
-		print(':', end="", flush=True)
+		PrintChar(':')
 
 def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
 	"""Standard loop iterating through a list of IDs"""
@@ -251,8 +261,13 @@ def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
 			continue
 		if (counter % limit) == 0:
 			postprocess([],**inputs)
-			print(':', end="", flush=True)
+			PrintChar(':')
 		counter += 1
+
+#LOOP HELPERS
+
+def FormatStartID(startid,above=False):
+	return [GetPageUrl(startid,above)] if startid != 0 else []
 
 #LOOP ITERABLES
 
@@ -267,22 +282,24 @@ def DownloadPostImageIteration(post,related=False,size="medium",directory="",las
 	
 	#Are we downloading all child/parent posts?
 	if related and (HasChild(post) or HasParent(post)):
-		totaldownloaded = len(DownloadRelatedPostImages(post,[post['id']]))
-		print("(R%d)" % totaldownloaded,end="",flush=True)
+		PrintChar('(')
+		DownloadRelatedPostImages(post,[post['id']],size,directory)
+		PrintChar(')')
 	
 	#Print some feedback
-	print('.', end="", flush=True)
+	PrintChar('.')
 	return 0
 
-def DownloadRelatedPostImages(post,alreadydownloaded):
+def DownloadRelatedPostImages(post,alreadydownloaded,size,directory):
 	"""Recursively download all child and parent images"""
 	
 	#Download any parent posts
 	if HasParent(post) and (post['parent_id'] not in alreadydownloaded):
 		parent = SubmitRequest('show','posts',id=post['parent_id'])
-		DownloadPostImage(parent)
+		DownloadPostImage(parent,size,directory)
+		PrintChar('.')
 		alreadydownloaded += [parent['id']]
-		alreadydownloaded = DownloadRelatedPostImages(parent,alreadydownloaded)
+		alreadydownloaded = DownloadRelatedPostImages(parent,alreadydownloaded,size,directory)
 	
 	#Download any child posts
 	if HasChild(post):
@@ -290,9 +307,10 @@ def DownloadRelatedPostImages(post,alreadydownloaded):
 		childlist = SubmitRequest('list','posts',urladdons=urladd)
 		for child in childlist:
 			if child['id'] not in alreadydownloaded:
-				DownloadPostImage(child)
+				DownloadPostImage(child,size,directory)
+				PrintChar('.')
 				alreadydownloaded += [child['id']]
-				alreadydownloaded = DownloadRelatedPostImages(child,alreadydownloaded)
+				alreadydownloaded = DownloadRelatedPostImages(child,alreadydownloaded,size,directory)
 	
 	return alreadydownloaded
 
@@ -349,8 +367,7 @@ def JoinData(*args):
 	return bytes[:-1]
 
 def ProcessTimestamp(timestring):
-	datetuple = datetime.strptime(timestring,"%Y-%m-%dT%H:%M:%S.%fZ")
-	return time.mktime(datetuple.timetuple()) + (datetuple.microsecond/1000000)
+	return iso8601.parse_date(timestring).timestamp()
 
 def DateStringInput(string):
 	match = dateregex.match(string)
@@ -413,12 +430,12 @@ def HasRelated(postver):
 
 def IsTagAdd(postver):
 	if (len(postver['unchanged_tags']) > 0) and (len(postver['added_tags']) > 0):
-		return (len(postver['added_tags'].split())) > MetatagCount(postver['added_tags'])
+		return (len(postver['added_tags'])) > MetatagCount(' '.join(postver['added_tags']))
 	return False
 
 def IsTagRemove(postver):
 	if (len(postver['unchanged_tags']) > 0) and (len(postver['removed_tags']) > 0):
-		return (len(postver['removed_tags'].split())) > MetatagCount(postver['removed_tags'])
+		return (len(postver['removed_tags'])) > MetatagCount(' '.join(postver['removed_tags']))
 	return False
 
 def MetatagExists(string):
@@ -434,13 +451,13 @@ def RatingExists(string):
 	return ((string.find("rating:")) >= 0)
 
 def IsParentChange(postver):
-	return (ParentExists(postver['added_tags']) or ParentExists(postver['removed_tags'])) and not IsUpload(postver)
+	return (ParentExists(' '.join(postver['added_tags'])) or ParentExists(' '.join(postver['removed_tags']))) and not IsUpload(postver)
 
 def IsRatingChange(postver):
-	return RatingExists(postver['added_tags']) and RatingExists(postver['removed_tags'])
+	return RatingExists(' '.join(postver['added_tags'])) and RatingExists(' '.join(postver['removed_tags']))
 
 def IsSourceChange(postver):
-	return (SourceExists(postver['added_tags']) or SourceExists(postver['removed_tags'])) and not IsUpload(postver)
+	return (SourceExists(' '.join(postver['added_tags'])) or SourceExists(' '.join(postver['removed_tags']))) and not IsUpload(postver)
 
 def MetatagCount(string):
 	return ParentCount(string) + SourceCount(string) + RatingCount(string)
