@@ -72,11 +72,11 @@ def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
 	#Only useful if a transformation is also applied
 	if sort != None:
 		values = sorted(values, key=sort, reverse=reverse)
-	
+	DebugPrint("Values:",values)
 	valuesprime = values
 	if transform != None:
 		valuesprime = list(map(transform,values))
-	
+	DebugPrint("Valuesprime:",valuesprime)
 	for i in range(0,len(valuesprime)):
 		if valuesprime[i] not in seen:
 			output.append(values[i])
@@ -207,15 +207,18 @@ def PutGetUnicode(filepath,optype,data=None):
 	elif optype[0] == 'r':
 		return eval((PutGetRaw(filepath,optype[0]+'b')).decode('UTF'))
 
-def LoadInitialValues(file,defaultvalues=None,unicode=False):
-		if os.path.exists(file):
+def LoadInitialValues(file,defaultvalues=None,unicode=False,isnew=False):
+		if os.path.exists(file) and not isnew:
 			print("Opening",file)
 			if unicode: 
 				return PutGetUnicode(file,'r')
 			return PutGetData(file,'r')
 		elif defaultvalues==None:
-			print(file,"not found")
-			exit(-1)
+			if isnew:
+				print("No default values")
+			else:
+				print(file,"not found")
+			return -1
 		else:
 			return defaultvalues
 
