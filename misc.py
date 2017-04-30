@@ -7,7 +7,8 @@ import sys
 import time
 import inspect
 import hashlib
-import urllib.request
+import requests
+#import urllib.request
 
 #LOCAL GLOBALS
 
@@ -128,41 +129,34 @@ def CreateOpen(filepath,optype):
 	CreateDirectory(filepath)
 	return open(filepath,optype)
 
-def DownloadFile(localfilepath,serverfilepath,headers={},timeout=60):
+def DownloadFile(localfilepath,serverfilepath,headers={},timeout=60,userinput=False):
 	"""Download a remote file to a local location"""
 	#Create the directory for the local file if it doesn't already exist
 	CreateDirectory(localfilepath)
 	#Does the file already exist with a size > 0
 	if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
 		while True:
-			with open(localfilepath,'wb') as outfile:
-				while True:
-					try:
-						req = urllib.request.Request(serverfilepath)
-						for item in headers:
-							req.add_header(item,headers[item])
-						response = urllib.request.urlopen(req,timeout=timeout)
-						if response.status == 200:
-							break
-						if not AbortRetryFail(serverfilepath,(response.status,response.reason)):
-							return -1
-					except urllib.error.HTTPError as inst:
-						response = inst
-						if response.status >= 500 and response.status < 600:
-							print("Server Error! Sleeping 30 seconds...")
-							time.sleep(30)
-							continue
-						print(serverfilepath,response.status,response.reason)
-						return -1
-					except:
-						print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
-						if not AbortRetryFail(serverfilepath,sys.exc_info()[1],localfilepath,serverfilepath,headers):
-							return -1
-				if not (outfile.write(response.read())):
-					if not AbortRetryFail(localfilepath,outfile):
-						return -1
-				else:
-					return 0
+			try:
+				response = requests.get(serverfilepath,headers=headers,timeout=timeout)
+			except KeyboardInterrupt:
+				exit(0)
+			except:
+				print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
+				if not AbortRetryFail(serverfilepath,sys.exc_info()[1],localfilepath,serverfilepath,headers):
+					return -1
+			if response.status_code == 200:
+				break
+			if response.status_code >= 500 and response.status_code < 600:
+					print("Server Error! Sleeping 30 seconds...")
+					time.sleep(30)
+					continue
+			if not userinput or not AbortRetryFail(serverfilepath,(response.status_code,response.reason)):
+				print(serverfilepath,response.status_code,response.reason)
+				return -1
+		with open(localfilepath,'wb') as outfile:
+			if not (outfile.write(response.content)):
+				if not AbortRetryFail(localfilepath,outfile):
+					return -1
 	return 0
 
 def TouchFile(fname, times=None):
@@ -190,7 +184,7 @@ def GetFileExtension(filepath):
 def PutGetRaw(filepath,optype,data=None):
 	CreateDirectory(filepath)
 	with open(filepath, optype) as f:
-		if optype[0] == 'w':
+		if optype[0] in ['w','a']:
 			f.write(data)
 		elif optype[0] == 'r':
 			return f.read()
@@ -331,5 +325,5 @@ def SafePrint(*args,**kwargs):
 		else:
 			temp += repr(arg) + ' '
 	temp.strip()
-	print(temp.encode('ascii','replace').decode(),**kwargs)
+	print(temp.encode('ascii','backslashreplace').decode(),**kwargs)
 	return temp
