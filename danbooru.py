@@ -7,6 +7,7 @@ import re
 import sys
 import time
 from datetime import datetime
+from functools import reduce
 import argparse
 import urllib.request
 import urllib.parse
@@ -15,12 +16,13 @@ import requests
 import iso8601
 
 #LOCAL IMPORTS
-from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction,PrintChar
+from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction,PrintChar,RemoveDuplicates
 from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
 #LOCAL GLOBALS
 
 wikilinkregex = re.compile(r'\[\[([^\|\]]+)\|?[^\]]*\]\]')
+tagsearchregex = re.compile(r'{{([^}]+)}}')
 dateregex = re.compile(r"""^([\d]{4}-[\d]{2}-[\d]{2})?		#Date1
 							(?:\.\.)?						#Non-capturing group for ..
 							(?(1)(?<=\.\.))					#If Date1 exists, ensure .. exists
@@ -150,29 +152,35 @@ def GetPostCount(searchtags):
 	urladd = GetArgUrl2('tags',searchtags)
 	return SubmitRequest('count','',urladdons=urladd)['counts']['posts']
 
+def GetTagCount(tagname):
+	urladd = GetSearchUrl('name',tagname)
+	taglist = SubmitRequest('list','tags',urladdons=urladd)
+	return 0 if taglist == [] else taglist[0]['post_count']
+
 def CheckIQDBUrl(checkurl):
 	retry = 0
 	while True:
-		iqdbresp = requests.post(booru_domain + '/iqdb_queries'+JoinArgs(danbooru_auth%(username,apikey),GetArgUrl2('url',checkurl)))
+		iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('url',checkurl),auth=(username,apikey))
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
 				return -1
 			elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
 				if retry >= 2:
-					return iqdbresp
+					return -3
 				print("Server error! Sleeping 30 seconds...")
+				return iqdbresp
 				time.sleep(30)
 				retry += 1
 				continue
 			else:
 				print("Server error!",checkurl,iqdbresp.status_code,iqdbresp.reason)
-				return -1
+				return -2
 		break
-	return list(map(int,re.findall(r'data-id="([^"]+)"',iqdbresp.text)))
+	return list(map(lambda x:x['post']['id'],iqdbresp.json()))
 
 def CheckIQDBPost(checkid):
 	while True:
-		iqdbresp = requests.post("http://danbooru.donmai.us/iqdb_queries?login=%s&api_key=%s&post_id=%d" % (username,apikey,checkid))
+		iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('post_id',checkid),auth=(username,apikey))
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
 				return -1
@@ -182,9 +190,9 @@ def CheckIQDBPost(checkid):
 				continue
 			else:
 				print("Server error!",checkid,iqdbresp.status_code,iqdbresp.reason)
-				exit(-1)
+				return -1
 		break
-	return list(map(int,re.findall(r'data-id="([^"]+)"',iqdbresp.text.replace('\\"','"'))))
+	return list(map(lambda x:x['post']['id'],iqdbresp.json()))
 
 def PostChangeTags(post,tagarray):
 	addtags = ' '.join(tagarray)
@@ -496,7 +504,11 @@ def IsDisregardTag(tagname):
 #DTEXT HELPER FUNCTIONS
 
 def GetWikiLinks(string):
-	return list(map(lambda x:x.lower().replace(' ','_'),wikilinkregex.findall(string)))
+	return RemoveDuplicates(list(map(lambda x:x.lower().replace(' ','_'),wikilinkregex.findall(string))))
+
+def GetTagSearches(string):
+	tagsearches = list(map(lambda x:x.split(),tagsearchregex.findall(string)))
+	return RemoveDuplicates(reduce(lambda x,y:x+y,tagsearches)) if len(tagsearches) > 0 else []
 
 #INTERNAL HELPER FUNCTIONS
 
