@@ -45,7 +45,7 @@ danbooru_auth = '?login=%s&api_key=%s'
 
 #For building Danbooru URL's and methods on the fly based on the operation type
 #Only list, create, show, update, delete, revert, undo and count have been tested
-danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('create_or_update.json','POST'),'count':('counts/posts.json','GET')}
+danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('/create_or_update.json','PUT'),'count':('counts/posts.json','GET')}
 
 #EXTERNAL FUNCTIONS
 
@@ -57,6 +57,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 	Ex: SubmitRequest('show','posts',id=1234567)
 	"""
 	retry = 0
+	tmr_retry = 0
 	urlsubmit = GetDanbooruUrl(opname,typename)
 	if id != None:
 		urlsubmit = urlsubmit % (id,username,apikey)
@@ -70,20 +71,27 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 		try:
 			DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
 			req = urllib.request.Request(url=urlsubmit,data=senddata,method=httpmethod)
-			httpresponse = urllib.request.urlopen(req)
+			httpresponse = urllib.request.urlopen(req,timeout=60)
 			DebugPrintInput(httpresponse.status,httpresponse.reason)
 		except HTTPError as inst:
 			if (inst.status >= 500 or inst.status < 600) and retry <=2:
 				retry += 1
 				time.sleep(5*(retry+1))
 				continue
+			elif inst.status == 429 and tmr_retry <= 5:
+				tmr_retry += 1
+				time.sleep(15*tmr_retry)
+				continue
 			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
 				retry = 0
 				continue
 			else:
 				return -1
-		except TimeoutError:
-			print("\nTimed out! Retrying in 60 seconds")
+		except (TimeoutError,ConnectionResetError) as e:
+			if isinstance(e,TimeoutError):
+				print("\nTimed out! Retrying in 60 seconds")
+			else:
+				print("\nConnection reset! Retrying in 60 seconds")
 			if retry > 2:
 				raise
 			time.sleep(60)
@@ -160,15 +168,19 @@ def GetTagCount(tagname):
 def CheckIQDBUrl(checkurl):
 	retry = 0
 	while True:
-		iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('url',checkurl),auth=(username,apikey))
+		try:
+			iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('url',checkurl),auth=(username,apikey),timeout=60)
+		except requests.exceptions.ReadTimeout:
+			print("\nIQDB Request timed out!")
+			continue
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
 				return -1
 			elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
 				if retry >= 2:
 					return -3
-				print("Server error! Sleeping 30 seconds...")
-				return iqdbresp
+				print("\nServer error! Sleeping 30 seconds...")
+				#return iqdbresp
 				time.sleep(30)
 				retry += 1
 				continue
@@ -180,7 +192,11 @@ def CheckIQDBUrl(checkurl):
 
 def CheckIQDBPost(checkid):
 	while True:
-		iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('post_id',checkid),auth=(username,apikey))
+		try:
+			iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('post_id',checkid),auth=(username,apikey))
+		except requests.exceptions.ReadTimeout:
+			print("\nIQDB Request timed out!")
+			continue
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
 				return -1
