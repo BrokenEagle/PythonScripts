@@ -129,7 +129,7 @@ def CreateOpen(filepath,optype):
 	CreateDirectory(filepath)
 	return open(filepath,optype)
 
-def DownloadFile(localfilepath,serverfilepath,headers={},timeout=60,userinput=False):
+def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=False):
 	"""Download a remote file to a local location"""
 	#Create the directory for the local file if it doesn't already exist
 	CreateDirectory(localfilepath)
@@ -140,6 +140,9 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=60,userinput=Fa
 				response = requests.get(serverfilepath,headers=headers,timeout=timeout)
 			except KeyboardInterrupt:
 				exit(0)
+			except requests.exceptions.ReadTimeout:
+				print("\nDownload timed out!")
+				continue
 			except:
 				print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
 				if not AbortRetryFail(serverfilepath,sys.exc_info()[1],localfilepath,serverfilepath,headers):
