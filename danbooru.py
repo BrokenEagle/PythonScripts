@@ -12,6 +12,7 @@ import argparse
 import urllib.request
 import urllib.parse
 from urllib.error import HTTPError
+import socket
 import requests
 import iso8601
 
@@ -71,7 +72,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 		try:
 			DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
 			req = urllib.request.Request(url=urlsubmit,data=senddata,method=httpmethod)
-			httpresponse = urllib.request.urlopen(req,timeout=60)
+			httpresponse = urllib.request.urlopen(req,timeout=20)
 			DebugPrintInput(httpresponse.status,httpresponse.reason)
 		except HTTPError as inst:
 			if (inst.status >= 500 or inst.status < 600) and retry <=2:
@@ -82,13 +83,15 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 				tmr_retry += 1
 				time.sleep(15*tmr_retry)
 				continue
+			elif inst.status == 404:
+				return -1
 			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
 				retry = 0
 				continue
 			else:
 				return -1
-		except (TimeoutError,ConnectionResetError) as e:
-			if isinstance(e,TimeoutError):
+		except (TimeoutError,ConnectionResetError,socket.timeout,urllib.error.URLError) as e:
+			if isinstance(e,TimeoutError) or isinstance(e,socket.timeout) or isinstance(e,urllib.error.URLError):
 				print("\nTimed out! Retrying in 60 seconds")
 			else:
 				print("\nConnection reset! Retrying in 60 seconds")
@@ -173,6 +176,9 @@ def CheckIQDBUrl(checkurl):
 		except requests.exceptions.ReadTimeout:
 			print("\nIQDB Request timed out!")
 			continue
+		except requests.exceptions.ConnectionError:
+			print("\nIQDB Connection error!")
+			continue
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
 				return -1
@@ -196,6 +202,9 @@ def CheckIQDBPost(checkid):
 			iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('post_id',checkid),auth=(username,apikey))
 		except requests.exceptions.ReadTimeout:
 			print("\nIQDB Request timed out!")
+			continue
+		except requests.exceptions.ConnectionError:
+			print("\nIQDB Connection error!")
 			continue
 		if iqdbresp.status_code != 200:
 			if iqdbresp.status_code == 404:
@@ -274,12 +283,16 @@ def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=B
 def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
 	"""Standard loop iterating through a list of IDs"""
 	counter = 1
-	for num in idlist:
+	for num in idlist.copy():
 		item = SubmitRequest('show',type,id=num)
-		if len(item) == 0:
+		if isinstance(item,int) or len(item) == 0:
+			print("%s #%d not found!" % (type.title(),num))
+			idlist.remove(num)
+			postprocess([],**inputs)
 			continue
 		ret = iteration(item,**inputs)
 		if ret < 0:
+			postprocess([],**inputs)
 			return
 		elif ret > 0:
 			continue
@@ -287,6 +300,7 @@ def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
 			postprocess([],**inputs)
 			PrintChar(':')
 		counter += 1
+	postprocess([],**inputs)
 
 #LOOP HELPERS
 
