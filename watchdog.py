@@ -42,7 +42,8 @@ def GetWatchdogInfo(program):
 		exit(-1)
 
 def main(args):
-	#TurnDebugOn()
+	if args.debug:
+		TurnDebugOn()
 	commandline = args.program.split()
 	startup = 1
 	
@@ -55,14 +56,19 @@ def main(args):
 		try:
 			DebugPrint("Polling interval:",args.pollinginterval,"Startup period:",args.startupwait)
 			p.wait(timeout=args.pollinginterval if startup==0 else args.startupwait)
-			DebugPrint("\nProgram returned",p.returncode)
-			if not p.returncode:
+			errorcode = p.returncode if (p.returncode < (1<<31)) else (p.returncode - (1<<32))
+			DebugPrint("\nProgram returned",errorcode)
+			if not errorcode:
 				break
+			if errorcode == -999:
+				print("\a\a\a\a\aFatal error... exiting")
+				exit(-1)
 			print("\nRestarting",commandline[0],"with system exception in",args.exceptionwait,"seconds")
 			time.sleep(args.exceptionwait)
 			print("Starting up",commandline)
 			p = StartProcess(commandline)
 			startup = 1
+			continue
 		except KeyboardInterrupt:
 			print("Exiting program")
 			p.kill()
@@ -85,6 +91,7 @@ if __name__ == '__main__':
 	parser.add_argument('-e','--exceptionwait',required=False,type=int, help="Wait time after program exception before restarting (Default: 300 sec)",default=300)
 	parser.add_argument('-t','--timeoutwait',required=False,type=int, help="Wait time after program lockup before restarting (Default: 60 sec)",default=60)
 	parser.add_argument('-s','--startupwait',required=False,type=int, help="Wait time after program starts before watchdog monitors (Default: 60 sec)",default=60)
+	parser.add_argument('-d','--debug',action="store_true",default=False,required=False)
 	parser.add_argument('program',help="Program and program arguments of monitored script enclosed in quotations \"\"")
 	args = parser.parse_args()
 	
