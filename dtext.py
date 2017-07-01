@@ -1,6 +1,3 @@
-#DTEXTTABLE.PY
-"""Primary use is to take the data collected by userreport.py and create a DText table"""
-
 #DTEXT.PY
 
 #Include functions used to format with dtext here
