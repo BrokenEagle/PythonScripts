@@ -63,6 +63,14 @@ def StaticVars(**kwargs):
 		return func
 	return decorate
 
+#Dict functions
+
+def AddDictEntry(indict,key,entry):
+	indict[key] = indict[key] + [entry] if key in indict else [entry]
+
+def IncDictEntry(indict,key):
+	indict[key] = indict[key] + 1 if key in indict else 1
+
 #List functions
 
 def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
@@ -308,9 +316,12 @@ def GetLineNumber():
 def GetFileName():
 	return GetFilename(inspect.getframeinfo(GetCallerModule(2)).filename)
 
-def DebugPrintInput(*args,**kwargs):
+def DebugPrintInput(*args,safe=False,**kwargs):
 	if GetCallerModule(2).f_globals['__name__'] in debugModule:
-		print(*args,**kwargs)
+		if safe:
+			SafePrint(*args,**kwargs)
+		else:
+			print(*args,**kwargs)
 		input()
 
 def DebugPrint(*args,safe=False,**kwargs):
@@ -329,4 +340,4 @@ def SafePrint(*args,**kwargs):
 			temp += repr(arg) + ' '
 	temp.strip()
 	print(temp.encode('ascii','backslashreplace').decode(),**kwargs)
-	return temp
+
