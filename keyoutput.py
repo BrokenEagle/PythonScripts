@@ -103,5 +103,5 @@ def AltTab(sleep1=1,sleep2=2,numtimes=1):
     ReleaseKey(VK_MENU) # Alt~
 
 if __name__ == "__main__":
-	os.startfile("d:\CmE7mFdUsAALfID.jpg")
-	AltTab(.5,.05)
+    os.startfile("d:\CmE7mFdUsAALfID.jpg")
+    AltTab(.5,.05)
