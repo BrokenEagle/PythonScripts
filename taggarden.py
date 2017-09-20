@@ -211,10 +211,10 @@ def setupmenus():
         hotkey = 1
         while True:
             print("\nHotkey #%d" % hotkey)
-            tag_name = input("Enter tag name (or Enter to finish): ").lower()
+            tag_name = input("Enter tag name (or Enter to finish): ").lower().strip().replace(' ','_')
             if len(tag_name) == 0:
                 break
-            header = getnameinput("Enter menu header for %s: " % tag_name)
+            header = getnameinput("Enter short name for %s: " % tag_name).strip().replace(' ','_')
             setupmenuarray.append((tag_name,{'header':header,'hotkey':str(hotkey)}))
             if hotkey == 0:
                 print("No more hotkeys!!")
