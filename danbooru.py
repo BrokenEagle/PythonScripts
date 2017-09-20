@@ -17,13 +17,16 @@ import requests
 import iso8601
 
 #LOCAL IMPORTS
-from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction,PrintChar,RemoveDuplicates
+from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction,PrintChar,\
+				RemoveDuplicates,SafePrint
 from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
 #LOCAL GLOBALS
 
 wikilinkregex = re.compile(r'\[\[([^\|\]]+)\|?[^\]]*\]\]')
 tagsearchregex = re.compile(r'{{([^}]+)}}')
+textileregex1 = re.compile(r'"([^"]+)":\[([^\]]+)\]')
+textileregex2 = re.compile(r'"([^"]+)":([^\[]\S+)')
 dateregex = re.compile(r"""^([\d]{4}-[\d]{2}-[\d]{2})?		#Date1
 							(?:\.\.)?						#Non-capturing group for ..
 							(?(1)(?<=\.\.))					#If Date1 exists, ensure .. exists
@@ -34,19 +37,14 @@ ageregex = re.compile(r"""^([\d]+(?:s|m[io]|h|d|w|y))?		#Age1
 							(?(1)(?<=\.\.))					#If Age1 exists, ensure .. exists
 							([\d]+(?:s|m[io]|h|d|w|y))?$	#Age2""",re.X)
 agetypedict = {'s':1,'mi':60,'h':60*60,'d':60*60*24,'w':60*60*24*7,'mo':60*60*24*30,'y':60*60*24*365}
+
+#All of the tags beyond *_request tags
 disregardtags = ['tagme','commentary','check_commentary','translated','partially_translated','check_translation','annotated','partially_annotated','check_my_note','check_pixiv_source']
-
-#The following are needed to properly evaluate the JSON responses from Danbooru
-null = None
-true = True
-false = False
-
-#Danbooru URL Constants
-danbooru_auth = '?login=%s&api_key=%s'
 
 #For building Danbooru URL's and methods on the fly based on the operation type
 #Only list, create, show, update, delete, revert, undo and count have been tested
 danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('/create_or_update.json','PUT'),'count':('counts/posts.json','GET')}
+danbooru_methods = {'GET':requests.get,'POST':requests.post,'PUT':requests.put,'DELETE':requests.delete}
 
 #EXTERNAL FUNCTIONS
 
@@ -61,72 +59,50 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
 	tmr_retry = 0
 	urlsubmit = GetDanbooruUrl(opname,typename)
 	if id != None:
-		urlsubmit = urlsubmit % (id,username,apikey)
-	else:
-		urlsubmit = urlsubmit % (username,apikey)
-	
-	urlsubmit = JoinArgs(urlsubmit,urladdons)
+		try:
+			urlsubmit = urlsubmit % id
+		except TypeError:
+			print("Bad arguments! The opname %s does not take an ID argument." % opname)
+			return -1
+	if urladdons != '':
+		urlsubmit = urlsubmit + '?' + urladdons
 	httpmethod = danbooru_ops[opname][1]
 	while True:
 		#Failures occur most often in two places. The first is communicating with Danbooru
+		DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
 		try:
-			DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
-			req = urllib.request.Request(url=urlsubmit,data=senddata,method=httpmethod)
-			httpresponse = urllib.request.urlopen(req,timeout=20)
-			DebugPrintInput(httpresponse.status,httpresponse.reason)
-		except HTTPError as inst:
-			if (inst.status >= 500 or inst.status < 600) and retry <=2:
-				retry += 1
-				time.sleep(5*(retry+1))
-				continue
-			elif inst.status == 429 and tmr_retry <= 5:
-				tmr_retry += 1
-				time.sleep(15*tmr_retry)
-				continue
-			elif inst.status == 404:
-				return -1
-			if AbortRetryFail(urlsubmit,senddata,httpmethod,inst):
-				retry = 0
-				continue
-			else:
-				return -1
-		except (TimeoutError,ConnectionResetError,socket.timeout,urllib.error.URLError) as e:
-			if isinstance(e,TimeoutError) or isinstance(e,socket.timeout) or isinstance(e,urllib.error.URLError):
-				print("\nTimed out! Retrying in 60 seconds")
-			else:
-				print("\nConnection reset! Retrying in 60 seconds")
-			if retry > 2:
-				raise
-			time.sleep(60)
-			retry += 1
+			danbooruresp = danbooru_methods[httpmethod](urlsubmit,data=senddata,auth=(username,apikey),headers={'Content-Type':'application/x-www-form-urlencoded'})
+		except requests.exceptions.ReadTimeout:
+			print("\nSubmitRequest timed out!")
 			continue
-		except:
-			print(urlsubmit,httpmethod)
-			print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
-			raise
-		#Success, and the server returned something to evaluate
-		if httpresponse.status in [200,201]:
-			#The second most common error is evaluating the response from Danbooru.
-			#If the response is particularly large, the following will hang.
-			#This can be detected by the printing of "Before Eval" without the subsequent "After Eval"
-			DebugPrint("Before Eval")
-			try:
-				evaltemp = httpresponse.read()
-				submittemp = eval((evaltemp).decode(encoding='utf-8'))
-			except SyntaxError as inst:
-				print(evaltemp)
-				print(urlsubmit,httpmethod)
-				print(inst)
-				sys.exit(-1)
-			DebugPrint("After Eval")
-			return submittemp
-		#Success, but the server returned nothing back to evaluate
-		elif (httpresponse.status > 200) and (httpresponse.status < 300):
-			return httpresponse
-		#Anything other than a 200 or 204 should raise an exception and be caught above
-		#The following is just in case the above is not true
-		elif not AbortRetryFail(urlsubmit,(httpresponse.status,httpresponse.reason)):
-			return -1
+		except requests.exceptions.ConnectionError:
+			print("\nSubmitRequest Connection error!")
+			continue
+		DebugPrint(repr(danbooruresp.text),safe=True)
+		DebugPrintInput(danbooruresp.status_code,danbooruresp.reason)
+		if danbooruresp.status_code not in [200,201,204]:
+			if danbooruresp.status_code in [404,422]:
+				return -1
+			if danbooruresp.status_code == 429:
+				print("\nThrottled!")
+				time.sleep(10)
+				continue
+			elif danbooruresp.status_code >= 500 and danbooruresp.status_code < 600:
+				print("\nServer error! Sleeping 30 seconds...")
+				time.sleep(30)
+				continue
+			else:
+				print("\nServer error!",danbooruresp.status_code,danbooruresp.reason)
+				SafePrint(urlsubmit,senddata,httpmethod)
+				return -1
+		break
+	DebugPrint("Before Eval")
+	try: 
+		data = danbooruresp.json()
+	except:
+		data = None
+	DebugPrint("After Eval")
+	return data
 
 def GetCurrFilePath(postdict,size="medium",directory=""):
 	"""Get filepath for storing server different sized files on local system.
@@ -153,22 +129,24 @@ def GetServFilePath(postdict,size="medium"):
 
 def DownloadPostImage(postdict,size="medium",directory=""):
 	"""Download a post image from Danbooru"""
-	
 	localfilepath = GetCurrFilePath(postdict,size,directory)
 	serverfilepath = GetServFilePath(postdict,size)
 	DebugPrintInput(localfilepath,serverfilepath)
 	return DownloadFile(localfilepath,serverfilepath)
 
 def GetPostCount(searchtags):
+	"""Get the post count given a tag search string"""
 	urladd = GetArgUrl2('tags',searchtags)
 	return SubmitRequest('count','',urladdons=urladd)['counts']['posts']
 
 def GetTagCount(tagname):
-	urladd = GetSearchUrl('name',tagname)
+	"""Get the post count of all posts that have a tag"""
+	urladd = GetSearchUrl('name_matches',tagname)
 	taglist = SubmitRequest('list','tags',urladdons=urladd)
 	return 0 if taglist == [] else taglist[0]['post_count']
 
 def CheckIQDBUrl(checkurl):
+	"""Query Danbooru's IQDB server using a URL as the input"""
 	retry = 0
 	while True:
 		try:
@@ -186,7 +164,6 @@ def CheckIQDBUrl(checkurl):
 				if retry >= 2:
 					return -3
 				print("\nServer error! Sleeping 30 seconds...")
-				#return iqdbresp
 				time.sleep(30)
 				retry += 1
 				continue
@@ -197,6 +174,7 @@ def CheckIQDBUrl(checkurl):
 	return list(map(lambda x:x['post']['id'],iqdbresp.json()))
 
 def CheckIQDBPost(checkid):
+	"""Query Danbooru's IQDB server using a post ID as the input"""
 	while True:
 		try:
 			iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('post_id',checkid),auth=(username,apikey))
@@ -219,11 +197,13 @@ def CheckIQDBPost(checkid):
 		break
 	return list(map(lambda x:x['post']['id'],iqdbresp.json()))
 
-def PostChangeTags(post,tagarray):
+def PostChangeTags(post,tagarray,silence=False):
+	"""Add a list of tags to a post"""
 	addtags = ' '.join(tagarray)
 	putdata = EncodeData('post','tag_string',post['tag_string']+' '+addtags)
 	SubmitRequest('update','posts',id=post['id'],senddata=putdata)
-	PrintChar('.')
+	if not silence:
+		PrintChar('.')
 
 #LOOP CONSTRUCTS
 
@@ -260,7 +240,6 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
 
 def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=BlankFunction):
 	"""Standard loop using page numbers to iterate"""
-	
 	idseen = []
 	while True:
 		urladd = JoinArgs(GetLimitUrl(limit),GetPageNumUrl(page),*addonlist)
@@ -311,7 +290,6 @@ def FormatStartID(startid,above=False):
 
 def DownloadPostImageIteration(post,related=False,size="medium",directory="",lastid=0):
 	"""To be called with loop construct to download images"""
-	
 	if lastid >= post['id']:
 		return -1
 	
@@ -330,7 +308,6 @@ def DownloadPostImageIteration(post,related=False,size="medium",directory="",las
 
 def DownloadRelatedPostImages(post,alreadydownloaded,size,directory):
 	"""Recursively download all child and parent images"""
-	
 	#Download any parent posts
 	if HasParent(post) and (post['parent_id'] not in alreadydownloaded):
 		parent = SubmitRequest('show','posts',id=post['parent_id'])
@@ -338,7 +315,6 @@ def DownloadRelatedPostImages(post,alreadydownloaded,size,directory):
 		PrintChar('.')
 		alreadydownloaded += [parent['id']]
 		alreadydownloaded = DownloadRelatedPostImages(parent,alreadydownloaded,size,directory)
-	
 	#Download any child posts
 	if HasChild(post):
 		urladd = JoinArgs(GetArgUrl2('tags',"parent:%d" % post['id']))
@@ -349,7 +325,6 @@ def DownloadRelatedPostImages(post,alreadydownloaded,size,directory):
 				PrintChar('.')
 				alreadydownloaded += [child['id']]
 				alreadydownloaded = DownloadRelatedPostImages(child,alreadydownloaded,size,directory)
-	
 	return alreadydownloaded
 
 #EXTERNAL HELPER FUNCTIONS
@@ -395,7 +370,7 @@ def GetSearchUrl(keyname,data):
 
 def EncodeData(typename,keyname,data):
 	"""Encode data for the senddata parameter of SubmitRequest."""
-	return (GetArgUrl(typename,keyname,data)).encode('ascii')
+	return (GetArgUrl(typename,keyname,data)).encode('UTF')
 
 def JoinData(*args):
 	"""Take multiple POST arguments of form "name=val" and concatenate them together"""
@@ -405,6 +380,7 @@ def JoinData(*args):
 	return bytes[:-1]
 
 def ProcessTimestamp(timestring):
+	"""Get seconds from the Epoch for Danbooru's timestamps"""
 	return iso8601.parse_date(timestring).timestamp()
 
 def DateStringInput(string):
@@ -422,9 +398,7 @@ def TimestampInput(string):
 	try:
 		stringlist = string.split('..')
 		timelist = [0,0]
-		#print(stringlist)
 		for i in range(0,len(stringlist)):
-			#print(stringlist[i])
 			timelist[i] = ProcessTimestamp(stringlist[i])
 	except:
 		raise argparse.ArgumentTypeError("Invalid timestamp input'")
@@ -436,7 +410,6 @@ def IDStringInput(string):
 		raise argparse.ArgumentTypeError("ID input must be of format 'Start#..End#'")
 	start = int(match.group(1))
 	end = int(match.group(2))
-	
 	if start > end:
 		raise argparse.ArgumentTypeError("Start ID must be less than End ID")
 	return match.group()
@@ -513,18 +486,14 @@ def SourceCount(string):
 
 def GetTagCategory(tagname):
 	"""Query danbooru for the category of a tag"""
-	
 	#Send tag query to Danbooru
 	urladd = GetSearchUrl('name',tagname)
 	taglist = SubmitRequest('list','tags',urladdons = urladd)
-	
 	#If the length of the list is one, then we found an exact match
 	if len(taglist) == 1:
 		return taglist[0]['category']
-	
 	#Otherwise the tag doesn't exist or it's empty
 	DebugPrint("Empty Tag",tagname)
-	
 	#Return a nonexistant tag category enumeration for internal use only
 	return 2
 
@@ -536,6 +505,9 @@ def IsDisregardTag(tagname):
 def GetWikiLinks(string):
 	return RemoveDuplicates(list(map(lambda x:x.lower().replace(' ','_'),wikilinkregex.findall(string))))
 
+def GetTextileLinks(string):
+	return RemoveDuplicates(list(map(lambda x:x[1],textileregex1.findall(string)))+list(map(lambda x:x[1],textileregex2.findall(string))))
+
 def GetTagSearches(string):
 	tagsearches = list(map(lambda x:x.split(),tagsearchregex.findall(string)))
 	return RemoveDuplicates(reduce(lambda x,y:x+y,tagsearches)) if len(tagsearches) > 0 else []
@@ -544,4 +516,4 @@ def GetTagSearches(string):
 
 def GetDanbooruUrl(opname,typename):
 	"""Build Danbooru URL on the fly"""
-	return (booru_domain + '/' + typename + danbooru_ops[opname][0]+danbooru_auth)
+	return (booru_domain + '/' + typename + danbooru_ops[opname][0])
