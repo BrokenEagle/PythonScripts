@@ -476,15 +476,16 @@ def main(args):
     setupmenuglobals(defaultmenu,setupmenudict)
     implicationdict = {}
     if useimplications:
-        print("Getting implications:\n")
+        print("\nGetting implications:\n")
         for tag in menutags:
-            print("Querying ",tag,"...")
+            print("Querying %s..." % tag)
             implicationdict[tag] = GetTagImplications(tag)
     
     #Get the total count for tagging
-    print("Getting total post count...")
+    print("\nGetting total post count:\n")
     loopinput = {}
     loopinput['currpos'] = [1,GetPostCount(args.tags)]
+    print("%d posts found" % loopinput['currpos'][1])
     
     #Execute main loop
     IDPageLoop('posts',100,taggardenpostiteration,addonlist=[GetArgUrl2('tags',searchtags)],inputs=loopinput)

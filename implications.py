@@ -30,6 +30,7 @@ def GetTagImplications(tag):
     allrelatedtags = getallrelatedtags(tag,allconsequents)
     implicationdata[tag] = {'time':time.time(),'implications':{'antecedents':allantecedents,'consequents':allconsequents,'relatedtags':allrelatedtags}}
     PutGetData(implicationfile,'w',implicationdata)
+    PrintChar('\n')
     
     return implicationdata[tag]['implications']
 
