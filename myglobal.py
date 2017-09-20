@@ -10,6 +10,7 @@ booru_domain = "http://danbooru.donmai.us"
 workingdirectory = "D:\\temp\\"
 datafilepath = "data\\"
 csvfilepath = "csv\\"
+jsonfilepath = "json\\"
 dtextfilepath = "dtext\\"
 imagefilepath = "pictures\\"
 
