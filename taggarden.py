@@ -44,6 +44,7 @@ consoleheight = 25
 menuconfigfile = workingdirectory + datafilepath + 'taggarden-config.txt'
 seenlistfile = workingdirectory + datafilepath + 'taggarden-seenlist.txt'
 bannerstring = "Post (%d/%d): <post #%d>"
+helpstring = "? for hotkeys"
 delayalt = 1.5        #time to wait before pressing Alt
 releasealt = 0.2    #time to wait before releasing Alt
 numbertab = 1        #times to press Tab key
@@ -84,7 +85,8 @@ def taggardenpostiteration(post,currpos):
     
     if regainfocus:
         #Configurable Alt Tab: gets back screen focus
-        AltTab(delayalt,releasealt,numbertab)
+        switch_thread = threading.Thread(target=AltTab, args=(delayalt,releasealt,numbertab))
+        switch_thread.start()
     
     #Get user input for tagging
     tagsadded = executemainmenu(post,currpos)
@@ -127,7 +129,12 @@ def executemainmenu(post,currpos):
         if redraw:
             temp = os.system('cls')
             printconsole.linepos = 0
-            printconsole(bannerstring % (tuple(currpos)+(postid,)))
+            tempstring = bannerstring % (tuple(currpos)+(postid,))
+            if (len(tempstring) + len(helpstring)) >= consolewidth:
+                printconsole(tempstring)
+                printconsole(helpstring)
+            else:
+                printconsole(tempstring + (" " * max(1,consolewidth-len(tempstring)-len(helpstring))) + helpstring)
             printconsolewrap(menubanner % setmenutuple(tagarray,removearray))
             if useimplications:
                 printtagimplications(tag_string)
