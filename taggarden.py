@@ -42,6 +42,7 @@ consoleheight = 25
 
 #Constants
 menuconfigfile = workingdirectory + datafilepath + 'taggarden-config.txt'
+seenlistfile = workingdirectory + datafilepath + 'taggarden-seenlist.txt'
 bannerstring = "Post (%d/%d): <post #%d>"
 delayalt = 1.5        #time to wait before pressing Alt
 releasealt = 0.2    #time to wait before releasing Alt
@@ -57,6 +58,14 @@ FUNCTIONBYTE = b'\x00'
 @StaticVars(downloadfile = False,debug = False,simulate = False,singlethread = False,backwardsarray = [])
 def taggardenpostiteration(post,currpos):
     """Main program iterator"""
+    global seenlist
+    
+    DebugPrintInput("Seenlist:",seenlist)
+    
+    if (seenlist != None) and (post['id'] in seenlist):
+        seenlist.remove(post['id'])
+        currpos[0] += 1
+        return 0
     
     #Download the file if needed then get the local path
     if taggardenpostiteration.downloadfile:
@@ -89,6 +98,9 @@ def taggardenpostiteration(post,currpos):
             print("\nStarting multitask tag thread...")
             update_thread = threading.Thread(target=PostChangeTags, args=(post,tagsadded,True))
             update_thread.start()
+    
+    if seenlist != None:
+        PutGetData(seenlistfile,'w',taggardenpostiteration.backwardsarray)
     
     currpos[0] += 1
     return 0
@@ -190,6 +202,10 @@ def executemainmenu(post,currpos):
         elif keypress.lower() == b'o':
             os.startfile("http://danbooru.donmai.us/posts/%d" % postid)
             redraw = False
+        elif keypress.lower() == b'?':
+            listhotkeys()
+            print("\nPress any key to continue...",flush=True,end="")
+            getch()
         else:
             redraw = False
     
@@ -398,6 +414,7 @@ def listhotkeys():
     print("          C: Remove all tag consequents")
     print("          R: Remove all related tags")
     print("          X: Remove all related consequents")
+    print("          ?: Print this help page")
 
 #Helper functions
 
@@ -409,7 +426,7 @@ def updateconsolesize():
 #Main function
 
 def main(args):
-    global searchtags,implicationdict
+    global searchtags,implicationdict,seenlist
     
     if args.debug:
         TurnDebugOn()
@@ -456,6 +473,14 @@ def main(args):
     if args.simulate:
         taggardenpostiteration.simulate = True
     
+    if args.saveprogress:
+        seenlist = []
+    elif args.restoreprogress:
+        seenlist = LoadInitialValues(seenlistfile,None)
+        taggardenpostiteration.backwardsarray += seenlist if seenlist != None else []
+    else:
+        seenlist = None
+    
     defaultmenu,setupmenudict = checkmenus()
     if args.defaultmenu != None:
         if args.defaultmenu.lower() not in setupmenudict:
@@ -471,7 +496,11 @@ def main(args):
         updateconsolesize()
     else:
         print("\"terminal.py\" missing! Setting console to constant width and height.")
-        os.system("mode con: cols=%d lines=%d" % (consolewidth,consoleheight))
+        if current_os == "Windows":
+            os.system("mode con: cols=%d lines=%d" % (consolewidth,consoleheight))
+        elif current_os == "Linux":
+            os.system("stty cols %d" % consolewidth)
+            os.system("stty rows %d" % consoleheight)
     
     setupmenuglobals(defaultmenu,setupmenudict)
     implicationdict = {}
@@ -506,6 +535,9 @@ if __name__ == '__main__':
     parser.add_argument('--debuglib',required=False,help="Show additional debug details for other libraries.")
     parser.add_argument('--simulate',required=False,action="store_true",default=False,help="Run the program without pushing any tag edits.")
     parser.add_argument('--singlethread',required=False,action="store_true",default=False,help="Will not send tag edits via multi-threading.")
+    progressgroup = parser.add_mutually_exclusive_group(required=False)
+    progressgroup.add_argument('--saveprogress',required=False,action="store_true",default=False,help="Start recording the posts that have already been edited.")
+    progressgroup.add_argument('--restoreprogress',required=False,action="store_true",default=False,help="Restart tagging using the progress saved by --saveprogress.")
     args = parser.parse_args()
     
     main(args)
