@@ -155,6 +155,7 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=Fa
                 print("Unexpected error:", sys.exc_info()[0],sys.exc_info()[1])
                 if not AbortRetryFail(serverfilepath,sys.exc_info()[1],localfilepath,serverfilepath,headers):
                     return -1
+                continue
             if response.status_code == 200:
                 break
             if response.status_code >= 500 and response.status_code < 600:
