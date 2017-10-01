@@ -288,6 +288,28 @@ def FormatStartID(startid,above=False):
 
 #LOOP ITERABLES
 
+def GetTypeDict(type,idlist,limit=1):
+    """Get a list of type instances"""
+    
+    typeiddict = {}
+    IDListLoop(type,limit,idlist,GetTypeIteration,inputs={'typeiddict':typeiddict})
+    return typeiddict
+
+def GetTypeIteration(type,typeiddict):
+    typeiddict[type['id']] = type
+    return 0
+
+def GetContributorList():
+    """Get the current list of contributors"""
+    
+    contributorlist = []
+    IDPageLoop('users',100,GetContributorListIteration,addonlist=[GetSearchUrl('can_upload_free','true')],inputs={'contributorlist':contributorlist})
+    return contributorlist
+
+def GetContributorIteration(user,contributorlist):
+    contributorlist += [user['id']]
+    return 0
+
 def DownloadPostImageIteration(post,related=False,size="medium",directory="",lastid=0):
     """To be called with loop construct to download images"""
     if lastid >= post['id']:
@@ -498,7 +520,7 @@ def GetTagCategory(tagname):
     return 2
 
 def IsDisregardTag(tagname):
-    return true if (tagname in disregardtags) or (tagname[-8:]=='_request') else False
+    return True if (tagname in disregardtags) or (tagname[-8:]=='_request') else False
 
 #DTEXT HELPER FUNCTIONS
 
