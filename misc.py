@@ -7,8 +7,11 @@ import sys
 import time
 import inspect
 import hashlib
-import requests
-#import urllib.request
+try:
+    import requests
+except ImportError:
+    print("Install requests module: pip install requests --upgrade")
+    exit(-1)
 
 #LOCAL GLOBALS
 

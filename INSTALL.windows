@@ -1,0 +1,33 @@
+::Rename file extension to .bat to run
+
+::::::::::::::::::::::::::::::::::::
+::Sets environment path variables as needed
+
+@echo off
+echo Checking Python script path...
+SET TempPath="%Path:;=";"%"
+FOR %%a IN (%TempPath%) DO (
+    echo.%%~a|findstr /r "\\Python\\.*\\Scripts" >nul 2>&1
+    if not errorlevel 1 (
+        SET PYTHONSCRIPTPATH=""
+        echo Found python script path %%~a
+    )
+    echo.%%~a|findstr /r "\\Python\\\\" >nul 2>&1
+    if not errorlevel 1 (
+        SET PYTHONMAINPATH=%%~a
+        echo Found python path %PYTHONMAINPATH%
+    )
+)
+
+IF NOT DEFINED PYTHONSCRIPTPATH (
+    echo Python script path not set...
+    echo Setting Path with %PYTHONMAINPATH%\Scripts
+    set Path=%Path%;%PYTHONMAINPATH%\Scripts
+)
+
+:: UNSETTING VARIABLES
+SET TempPath=
+SET PYTHONMAINPATH=
+SET PYTHONSCRIPTPATH=
+
+@echo on

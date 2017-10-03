@@ -13,7 +13,11 @@ import urllib.request
 import urllib.parse
 from urllib.error import HTTPError
 import socket
-import requests
+try:
+    import requests
+except ImportError:
+    print("Install requests module: pip install requests --upgrade")
+    exit(-1)
 import iso8601
 
 #LOCAL IMPORTS

@@ -3,7 +3,11 @@
 #PYTHON IMPORTS
 import os
 import re
-import requests
+try:
+    import requests
+except ImportError:
+    print("Install requests module: pip install requests --upgrade")
+    exit(-1)
 from argparse import ArgumentParser
 
 #MY IMPORTS

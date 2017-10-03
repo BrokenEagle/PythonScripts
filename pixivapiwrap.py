@@ -2,7 +2,11 @@
 
 #PYTHON IMPORTS
 import sys
-from pixivpy3 import PixivAPI
+try:
+    from pixivpy3 import PixivAPI
+except ImportError:
+    print("Install PixivPy module: pip install pixivpy --upgrade")
+    exit(-1)
 
 #MY IMPORTS
 from misc import GetCurrentTime,AbortRetryFail

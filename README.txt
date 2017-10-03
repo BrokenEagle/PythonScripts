@@ -29,8 +29,10 @@
 
 4. Other Files
 
-    a. tagdict.txt -    Contains 60K+ tag entries; Will drastically reduce the amount
-                        of tag misses as compared to starting a brand new tag dictionary.
+    a. tagdict.txt -     Contains 60K+ tag entries; Will drastically reduce the amount
+                         of tag misses as compared to starting a brand new tag dictionary.
+    
+    b. INSTALL.windows - Sets up environment variables.
 
 5. Setup
 
@@ -50,6 +52,8 @@
                             be downloaded to.
     
     b. Move the tagdict.txt into the "workingdirectory" (this step is only for userreport.py)
+    
+    c. Change the file extension of the install file to .bat and run.
 
 6. Usage Notes
 
