@@ -17,13 +17,15 @@
 
 3. Application Files
 
-    a. userreport.py -  Collects data for the preceding month for various categories
+    a. userreport.py -       Collects data for the preceding month for various categories
         (Currently being reworked)
     
-    b. toptags.py -     Collects data for the preceding month on top taggers
+    b. toptags.py -          Collects data for the preceding month on top taggers
         (Currently being reworked)
     
-    c. taggarden.py -   Interactive tagging for Danbooru
+    c. taggarden.py -        Interactive tagging for Danbooru
+    
+    d. checkpixivimages.py - Organizes a collection of images downloaded from Pixiv.
 
 4. Other Files
 
@@ -51,7 +53,7 @@
 
 6. Usage Notes
 
-a. userreport.py
+  a. userreport.py
 
     Some of the reports take quite a while to fully generate. The 'uploads' report takes
     the longest at around 2-3 hours to complete.  The other reports noted for lengthy
@@ -62,7 +64,7 @@ a. userreport.py
     Danbooru for a new list.  It'll print a number once a day has been fully collected,
     and the number reflects how many days have been collected so far.
 
-b. taggarden.py
+  b. taggarden.py
 
     The program uses the systems native file opener, which for the system of development
     was IrfanView for JPG/PNG, Internet Explorer for GIF, and Media Player Classic for WEBM.
@@ -79,3 +81,10 @@ b. taggarden.py
     
     Program use involved having the console window on the right of the screen and the file
     opener on the left side.
+
+  c. checkpixivimages.py
+
+    The program organizes images downloaded from Pixiv based on their status on Pixiv and
+    Danbooru.  This includes whether the image name is properly formatted, whether the image
+    exists on Danbooru and/or Pixiv, and whether the image is an MD5 match with Danbooru
+    and/or Pixiv.
