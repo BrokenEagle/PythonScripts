@@ -8,10 +8,14 @@ from argparse import ArgumentParser
 
 #MY IMPORTS
 import pixivapiwrap
-from misc import GetDirectoryListing,GetHTTPFilename,GetFilename,CreateDirectory,PutGetRaw,GetBufferChecksum
+from misc import GetDirectoryListing,GetHTTPFilename,GetFilename,CreateDirectory,PutGetRaw,GetBufferChecksum,\
+                    LoadInitialValues,PutGetData
 from danbooru import SubmitRequest,GetArgUrl2
+from myglobal import workingdirectory,datafilepath
 
 #LOCAL GLOBALS
+
+pixivhashfile = workingdirectory + datafilepath + 'pixivimagehashes.txt'
 
 pixividrg = re.compile(r'^(\d+)_p(\d+)(_(?:master|square)1200)?\.(?:jpg|gif|png)$',re.IGNORECASE)
 pixivillustrg = re.compile(r'^https?://(?:(?:www|touch)\.)?pixiv\.net/member_illust\.php\?mode=(?:medium|manga|manga_big)&illust_id=(\d+)(?:&page=(\d+))?',re.IGNORECASE)
@@ -37,15 +41,18 @@ sortsubdirectories = {
 }
 
 flatdirectories = {
-    0:'A-FoundNone\\',
-    4:'B-FoundPixiv-MatchNone\\',
-    5:'C-FoundPixiv-MatchPixiv\\',
-    8:'D-FoundDanbooru-MatchNone\\',
-    10:'E-FoundDanbooru-MatchDanbooru\\',
-    12:'F-FoundBoth-MatchNone\\',
-    13:'G-FoundBoth-MatchPixiv\\',
-    14:'H-FoundBoth-MatchDanbooru\\',
-    15:'I-FoundBoth-MatchBoth\\',
+    0:'A-FoundNone-MatchNone\\',
+    2:'B-FoundNone-MatchDanbooru\\',
+    4:'C-FoundPixiv-MatchNone\\',
+    5:'D-FoundPixiv-MatchPixiv\\',
+    6:'E-FoundPixiv-MatchDanbooru\\',
+    7:'F-FoundPixiv-MatchBoth\\',
+    8:'G-FoundDanbooru-MatchNone\\',
+    10:'H-FoundDanbooru-MatchDanbooru\\',
+    12:'I-FoundBoth-MatchNone\\',
+    13:'J-FoundBoth-MatchPixiv\\',
+    14:'K-FoundBoth-MatchDanbooru\\',
+    15:'L-FoundBoth-MatchBoth\\',
     16:'Z-BadName\\'
 }
 
@@ -125,6 +132,7 @@ def main(args):
     if normalpath[-1] != directoryseparator:
         normalpath += directoryseparator
     
+    pixivimages = LoadInitialValues(pixivhashfile,{})
     api = pixivapiwrap.PixivAPIWrapper()
     
     for filename in GetDirectoryListing(normalpath):
@@ -174,12 +182,6 @@ def main(args):
         else:
             print("    Bad Danbooru ID!")
         
-        #Nothing found... punt and continue
-        if foundon == 0:
-            print("<===Image not found anywhere!===>")
-            movefile(normalpath,filename,0,None,args.flatdirectories)
-            continue
-        
         #Step 4 - Open local file and get checksum
         print("Step 4: Get local file checksum")
         buffer = PutGetRaw(normalpath + filename,'rb')
@@ -192,22 +194,32 @@ def main(args):
                 imageurl = pixivpost['image_urls']['large']
             else:
                 imageurl = pixivpost['metadata']['pages'][pixivpage]['image_urls']['large']
-            response = responsivedownload(imageurl,{ 'Referer': 'https://app-api.pixiv.net/' })
-            if not isinstance(response,int):
-                pixivchecksum = GetBufferChecksum(response.content)
-                if pixivchecksum == filechecksum:
-                    matchon |= MATCHPIXIV
-                    print("    Match on Pixiv!")
-                else:
-                    print("    No Match on Pixiv!")
+            pixivchecksum = ''
+            if imageurl in pixivimages:
+                pixivchecksum = pixivimages[imageurl]
             else:
-                print("    Error downloading image!")
+                response = responsivedownload(imageurl,{ 'Referer': 'https://app-api.pixiv.net/' })
+                if not isinstance(response,int):
+                    pixivchecksum = GetBufferChecksum(response.content)
+                    pixivimages[imageurl] = pixivchecksum
+                    PutGetData(pixivhashfile,'w',pixivimages)
+                else:
+                    print("    Error downloading image!")
+            if pixivchecksum == filechecksum:
+                matchon |= MATCHPIXIV
+                print("    Match on Pixiv!")
+            else:
+                print("    No Match on Pixiv!")
         
         #Step 6 - Check filematch with Danbooru
-        if foundon & FOUNDDANBOORU:
-            print("Step 6: Get Danbooru image checksum")
-            matchingmd5s = list(map(lambda x:x['md5'],danboorulist))
-            if filechecksum in matchingmd5s:
+        print("Step 6: Get Danbooru image checksum")
+        matchingmd5s = list(map(lambda x:x['md5'],danboorulist))
+        if filechecksum in matchingmd5s:
+            matchon |= MATCHDANBOORU
+            print("    Match on Danbooru!")
+        else:
+            danboorumd5list = SubmitRequest('list','posts',urladdons=GetArgUrl2('tags','status:any md5:'+filechecksum))
+            if len(danboorumd5list) > 0:
                 matchon |= MATCHDANBOORU
                 print("    Match on Danbooru!")
             else:
