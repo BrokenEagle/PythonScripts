@@ -5,13 +5,15 @@
 
 2. Library Files
 
-    a. myglobal.py -        Global variables for customizing script environment
-    b. misc.py -            Functions that are universally applicable to any script
-    c. danbooru.py -        Functions specifically to help communicate with Danbooru
-    d. dtext.py -           Functions that help create DText tables
+    a. myglobal.py -        Global variables for customizing script environment.
+    b. misc.py -            Functions that are universally applicable to any script.
+    c. danbooru.py -        Functions specifically to help communicate with Danbooru.
+    d. dtext.py -           Functions that help create DText tables.
     e. implications.py -    Gets the current sets of implications for a tag.
-    f. keyoutput.py -       Allows for key output to be programmatically be sent to the system
-    g. terminalsize.py -    Gets the current size of the console
+    f. keyoutput.py -       Allows for key output to be programmatically be sent to the system.
+    g. terminalsize.py -    Gets the current size of the console.
+    h. pixivapiwrap.py -    Wrapper for PixivPy. Manages error conditions, performs common
+                            data operations, and keeps the user logged in.
 
 3. Application Files
 
@@ -32,8 +34,10 @@
 
     a. Adjust settings in myglobal.py
     
-        username:           Your Danbooru username
+        username:           Your Danbooru username.
         apikey:             Your Danbooru apikey; found on Danbooru user profile under API Key.
+        pixivusername:      Your Pixiv username.
+        pixivpassword:      Your Pixiv password.
         workingdirectory:   Base directory where the scripts can write files.
         datafilepath:       Directory in workingdirectory where the data gets saved
                             periodically in a text file.

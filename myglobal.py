@@ -15,5 +15,7 @@ dtextfilepath = "dtext\\"
 imagefilepath = "pictures\\"
 
 """Uncomment the following lines (remove the '#') and enter user specific info"""
-#username = 'USERNAME_GOES_HERE'
-#apikey = 'API_KEY_GOES_HERE'
+#username = "USERNAME_GOES_HERE"
+#apikey = "API_KEY_GOES_HERE"
+#pixivusername = "USERNAME_GOES_HERE"
+#pixivpassword = "PASSWORD_GOES_HERE"
