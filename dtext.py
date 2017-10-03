@@ -8,7 +8,7 @@
 from misc import CreateOpen
 from myglobal import workingdirectory
 
-__all__ = ['WriteDtextFile','ConstructTable']
+__all__ = ['WriteDtextFile','ConstructTable','CreateArray']
 
 #EXTERNAL FUNCTIONS
 
@@ -45,6 +45,27 @@ def ConstructTable(columnlist,datalist,isrank=True):
         tablebody += AddTableRow(tempstr)
     tablebody = AddTableBody(tablebody)
     return AddTable(tablehead+tablebody)
+
+def CreateArray(orderlist,*args):
+    """Create a 2-dimensional array from multiple dictionaries"""
+    
+    tablelist = []
+    for id in orderlist:
+        row = []
+        for arg in args:
+            if arg=={}:
+                continue
+            if id not in arg:
+                row += ["ID not found"]
+                continue
+            if isinstance(arg[id],list):
+                row += arg[id]
+            elif isinstance(arg[id],(int,float,str)):
+                row += [arg[id]]
+            else:
+                row += ["Unsupported type"]
+        tablelist += [row]
+    return tablelist
 
 #HELPER FUNCTIONS
 
