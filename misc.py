@@ -71,6 +71,32 @@ def AddDictEntry(indict,key,entry):
 def IncDictEntry(indict,key):
     indict[key] = indict[key] + 1 if key in indict else 1
 
+def SetIntersectDict(indict,intersectlist):
+    tempdict = indict.copy()
+    for key in indict:
+        if key not in intersectlist:
+            del tempdict[key]
+    return tempdict
+
+def SetDifferenceDict(indict,differencelist):
+    tempdict = indict.copy()
+    for key in indict:
+        if key in differencelist:
+            del tempdict[key]
+    return tempdict
+
+def MinimumCutoffDict(indict,cutoff,sortcolumn=None):
+    """Remove dictionary entries that don't meet a cutoff for a column"""
+    tempdict = indict.copy()
+    for key in indict:
+        if sortcolumn == None:
+            testvalue = indict[key]
+        else:
+            testvalue = indict[key][sortcolumn]
+        if testvalue < cutoff:
+            del tempdict[key]
+    return tempdict
+
 #List functions
 
 def RemoveDuplicates(values,transform=None,sort=None,reverse=False):
@@ -174,6 +200,9 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=Fa
 def TouchFile(fname, times=None):
     with open(fname, 'a'):
         os.utime(fname, times)
+
+def GetDirectoryListing(directory):
+    return [filename for filename in next(os.walk(directory))[2]]
 
 def GetDirectory(filepath):
     return filepath[:filepath.rfind('\\')]
@@ -310,6 +339,9 @@ def TurnDebugOff(modulename=None):
     if modulename==None:
         modulename = GetCallerModule(2).f_globals['__name__']
     temp = debugModule.pop(modulename)
+
+def GetDebugName():
+    print("Module name:",GetCallerModule(2).f_globals['__name__'])
 
 def GetLineNumber():
     return inspect.getframeinfo(GetCallerModule(2)).lineno
