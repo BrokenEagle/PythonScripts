@@ -405,6 +405,10 @@ def ProcessTimestamp(timestring):
     """Get seconds from the Epoch for Danbooru's timestamps"""
     return iso8601.parse_date(timestring).timestamp()
 
+def CreateTimestamp(epochtime):
+    """Convert seconds from the Epoch to Danbooru's timestamps"""
+    return time.strftime("%Y-%m-%dT%H:%M:%S.",time.gmtime(epochtime)) + str(int((epochtime % 1) * 1000)) + 'Z'
+
 def DateStringInput(string):
     match = dateregex.match(string)
     if match == None:
