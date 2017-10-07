@@ -162,9 +162,9 @@ def CreateDirectory(filepath):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-def CreateOpen(filepath,optype):
-    CreateDirectory(filepath)
-    return open(filepath,optype)
+def CreateOpen(*args,**kwargs):
+    CreateDirectory(args[0])
+    return open(*args,**kwargs)
 
 def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=False):
     """Download a remote file to a local location"""
@@ -329,6 +329,9 @@ def SecondsToHours(intime):
 
 def AddDays(timestring,days):
     return time.strftime("%Y-%m-%d",(time.gmtime(time.mktime(time.strptime(timestring,"%Y-%m-%d"))+DaysToSeconds(days))))
+
+def GetDate(epochtime):
+	return time.strftime("%Y-%m-%d",time.gmtime(epochtime))
 
 #Debug functions
 def TurnDebugOn(modulename=None):
