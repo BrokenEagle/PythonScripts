@@ -4,25 +4,17 @@
 
 #PYTHON IMPORTS
 import re
-import sys
 import time
 from datetime import datetime
 from functools import reduce
 import argparse
-import urllib.request
 import urllib.parse
-from urllib.error import HTTPError
-import socket
-try:
-    import requests
-except ImportError:
-    print("Install requests module: pip install requests --upgrade")
-    exit(-1)
+import requests
 import iso8601
 
 #LOCAL IMPORTS
-from misc import DebugPrint,DebugPrintInput,CreateDirectory,AbortRetryFail,DownloadFile,BlankFunction,PrintChar,\
-                RemoveDuplicates,SafePrint
+from misc import DebugPrint,DebugPrintInput,AbortRetryFail,DownloadFile,BlankFunction,\
+                PrintChar,RemoveDuplicates,SafePrint
 from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
 #LOCAL GLOBALS
