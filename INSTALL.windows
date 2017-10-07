@@ -1,4 +1,4 @@
-::Rename file extension to .bat to run
+::Run: copy INSTALL.windows install.bat ; install.bat
 
 ::::::::::::::::::::::::::::::::::::
 ::Sets environment path variables as needed
@@ -7,27 +7,64 @@
 echo Checking Python script path...
 SET TempPath="%Path:;=";"%"
 FOR %%a IN (%TempPath%) DO (
-    echo.%%~a|findstr /r "\\Python\\.*\\Scripts" >nul 2>&1
-    if not errorlevel 1 (
-        SET PYTHONSCRIPTPATH=""
-        echo Found python script path %%~a
-    )
-    echo.%%~a|findstr /r "\\Python\\\\" >nul 2>&1
-    if not errorlevel 1 (
-        SET PYTHONMAINPATH=%%~a
-        echo Found python path %PYTHONMAINPATH%
-    )
+    call :innerloop %%a
 )
+goto :continueon
 
+:innerloop
+    echo.%~1|findstr /r "\\Python\\.*\\Scripts" >nul 2>&1
+    if not errorlevel 1 (
+        SET PYTHONSCRIPTPATH=%~1
+        goto :eof
+    )
+    echo.%~1|findstr /r "\\Python\\\\" >nul 2>&1
+    if not errorlevel 1 (
+        SET PYTHONMAINPATH=%~1
+    )
+goto :eof
+
+:continueon
+echo Python path: %PYTHONMAINPATH%
+echo Script path: %PYTHONSCRIPTPATH%
 IF NOT DEFINED PYTHONSCRIPTPATH (
-    echo Python script path not set...
+    echo Python script path not set
     echo Setting Path with %PYTHONMAINPATH%\Scripts
     set Path=%Path%;%PYTHONMAINPATH%\Scripts
+    setx Path "%Path%;%PYTHONMAINPATH%\Scripts"
+) else (
+    echo Python script path already set
+)
+
+::Install required Python packages
+echo.
+echo Installing Python modules...
+pip install --upgrade --user iso8601
+pip install --upgrade --user requests
+pip install --upgrade --user pixivpy
+
+::Set Python environment variable
+echo.
+echo Checking Python import path...
+IF NOT DEFINED PYTHONPATH (
+    echo Python import path not set...
+    echo Setting PYTHONPATH with %CD%\lib
+    set PYTHONPATH=%CD%\lib
+    setx PYTHONPATH "%CD%\lib"
+    type NUL > INSTALLED.env
+) else (
+    echo Python import path set...
+    if not exist INSTALLED.env (
+        echo Adding %CD%\lib to PYTHONPATH
+        set PYTHONPATH=%PYTHONPATH%;%CD%\lib
+        setx PYTHONPATH "%PYTHONPATH%;%CD%\lib"
+        type NUL > INSTALLED.env
+    ) else (
+        echo Path already installed
+    )
 )
 
 :: UNSETTING VARIABLES
 SET TempPath=
 SET PYTHONMAINPATH=
 SET PYTHONSCRIPTPATH=
-
 @echo on
