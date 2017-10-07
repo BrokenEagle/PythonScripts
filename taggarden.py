@@ -1,24 +1,36 @@
+#!/usr/bin/env python3
 #TAGGARDEN.PY
 
 #PYTHON IMPORTS
 import os
 import sys
 import time
-import msvcrt
 import threading
 from argparse import ArgumentParser
 from collections import OrderedDict
 
 #MY IMPORTS
-from misc import TurnDebugOn,StaticVars,PrintChar,RemoveDuplicates,PutGetData,LoadInitialValues,DebugPrint,DebugPrintInput
-from danbooru import SubmitRequest,IDPageLoop,DownloadPostImageIteration,GetPostCount,GetArgUrl2,GetCurrFilePath,\
-                    DownloadPostImage,PostChangeTags
+from misc import TurnDebugOn,StaticVars,PrintChar,RemoveDuplicates,PutGetData,\
+                    LoadInitialValues,DebugPrint,DebugPrintInput,GetCurrentOS
+from danbooru import SubmitRequest,IDPageLoop,DownloadPostImageIteration,GetPostCount,\
+                    GetArgUrl2,GetCurrFilePath,DownloadPostImage,PostChangeTags
 from myglobal import workingdirectory,datafilepath,imagefilepath
 
-try:
-    from keyoutput import AltTab
-    regainfocus = True
-except ImportError:
+#PLATFORM IMPORTS
+if GetCurrentOS() == "Windows":
+    from msvcrt import getch
+    try:
+        from keyoutput import AltTab
+        regainfocus = True
+    except ImportError:
+        regainfocus = False
+else:
+    import subprocess
+    try:
+        from getch import getch
+    except ImportError:
+        print("Install getch module!  \"pip install getch\"")
+        exit(-1)
     regainfocus = False
 
 try:
@@ -43,16 +55,17 @@ consoleheight = 25
 #Constants
 menuconfigfile = workingdirectory + datafilepath + 'taggarden-config.txt'
 seenlistfile = workingdirectory + datafilepath + 'taggarden-seenlist.txt'
+taggardenpath = taggardenpath if GetCurrentOS() == "Windows" else 'taggarden/'
 bannerstring = "Post (%d/%d): <post #%d>"
 helpstring = "? for hotkeys"
 delayalt = 1.5        #time to wait before pressing Alt
 releasealt = 0.2    #time to wait before releasing Alt
 numbertab = 1        #times to press Tab key
-ESCAPEKEY = b'\x1b'
-BACKSPACE = b'\x08'
-ENTERKEY = b'\r'
-ESCAPEBYTE = b'\xe0'
-FUNCTIONBYTE = b'\x00'
+ESCAPEKEY = '\x1b'
+BACKSPACE = ['\x08','\x7f']
+ENTERKEY = ['\r','\n']
+ESCAPEBYTE = '\xe0'
+FUNCTIONBYTE = '\x00'
 
 #Main execution functions
 
@@ -70,13 +83,13 @@ def taggardenpostiteration(post,currpos):
     
     #Download the file if needed then get the local path
     if taggardenpostiteration.downloadfile:
-        DownloadPostImage(post,directory='taggarden\\')
-    currfile = GetCurrFilePath(post,directory='taggarden\\')
+        DownloadPostImage(post,directory=taggardenpath)
+    currfile = GetCurrFilePath(post,directory=taggardenpath)
     DebugPrint("Image filepath:",currfile)
     
     #Start the downloaded file with its default viewer
     if os.path.exists(currfile):
-        temp = os.startfile(currfile)
+        openmimeobject(currfile)
     else:
         print("Error: image does not exist!")
         print("Filepath:", currfile)
@@ -127,7 +140,7 @@ def executemainmenu(post,currpos):
     
     while True:
         if redraw:
-            temp = os.system('cls')
+            clearscreen()
             printconsole.linepos = 0
             tempstring = bannerstring % (tuple(currpos)+(postid,))
             if (len(tempstring) + len(helpstring)) >= consolewidth:
@@ -141,21 +154,25 @@ def executemainmenu(post,currpos):
             addedtags = manualtags + gettagsadded(tag_string,tagarray,removearray)
             if len(addedtags) > 0:
                 printlistitems(addedtags,"\nAdded tags:",'\n ',1)
-                #printconsole("\nAdded tags:")
-                #for tag in addedtags:
-                #    printconsole(' '+tag)
             if displaytagstring:
                 printconsole("\nTag string:")
                 printconsolewrap(tag_string)
             DebugPrint("\nLinepos:",printconsole.linepos)
             DebugPrint("\nTagarrays:",tagarray,removearray)
         redraw = True
-        keypress = msvcrt.getch()
-        if keypress == ENTERKEY:
+        keypress = getchwrap()
+        if keypress in ENTERKEY:
             break
         if keypress == ESCAPEKEY:
-            sys.exit(0)
-        if keypress == BACKSPACE:
+            escapeval = processescape()
+            if escapeval == 'delete':
+                tagarray = [0] * menulen
+                removearray = [0] * 4
+            elif escapeval == 'refresh':
+                updateconsolesize()
+            else:
+                redraw = False
+        elif keypress in BACKSPACE:
             if len(taggardenpostiteration.backwardsarray) == 0:
                 redraw = False
                 continue
@@ -167,52 +184,52 @@ def executemainmenu(post,currpos):
             backpost = SubmitRequest('show','posts',id=backpostid)
             currpos[0] -= 1
             taggardenpostiteration(backpost,currpos)
-            currfile = GetCurrFilePath(post,directory="taggarden\\")
-            os.startfile(currfile)
+            currfile = GetCurrFilePath(post,directory=taggardenpath)
+            openmimeobject(currfile)
             if regainfocus:
                 AltTab(delayalt,releasealt,numbertab)
         elif keypress == FUNCTIONBYTE:
-            functionkey = msvcrt.getch()
-            if functionkey == b'?':
+            functionkey = getchwrap()
+            if functionkey == '?':
                 updateconsolesize()
             else:
                 redraw = False
         elif keypress in menukeys:
-            pos = menukeys.index(keypress.lower())
+            pos = menukeys.index(keypress)
             tagarray[pos] ^= 1
-        elif keypress.lower() == ESCAPEBYTE:
-            escapecode = msvcrt.getch()
+        elif keypress == ESCAPEBYTE:
+            escapecode = getchwrap()
             if escapecode == 'S':
                 tagarray = [0] * menulen
                 removearray = [0] * 4
-        elif keypress.lower() == b'a':
+        elif keypress == 'a':
             removearray[0] ^= 1
-        elif keypress.lower() == b'c':
+        elif keypress == 'c':
             removearray[1] ^= 1
-        elif keypress.lower() == b'r':
+        elif keypress == 'r':
             removearray[2] ^= 1
-        elif keypress.lower() == b'x':
+        elif keypress == 'x':
             removearray[3] ^= 1
-        elif keypress.lower() == b'f':
-            currfile = GetCurrFilePath(post,"large",directory="taggarden\\")
+        elif keypress == 'f':
+            currfile = GetCurrFilePath(post,"large",directory=taggardenpath)
             if os.path.exists(currfile):
                 os.remove(currfile)
-            DownloadPostImage(post,"large",directory="taggarden\\")
-            temp = os.startfile(currfile)
+            DownloadPostImage(post,"large",directory=taggardenpath)
+            temp = openmimeobject(currfile)
             if regainfocus:
                 AltTab(delayalt,releasealt,numbertab)
-        elif keypress.lower() == b'm':
+        elif keypress == 'm':
             keyinput = input("\nEnter manual tags:\n\n")
             manualtags = keyinput.split()
-        elif keypress.lower() == b't':
+        elif keypress == 't':
             displaytagstring ^= True
-        elif keypress.lower() == b'o':
-            os.startfile("http://danbooru.donmai.us/posts/%d" % postid)
+        elif keypress == 'o':
+            openmimeobject("http://danbooru.donmai.us/posts/%d" % postid)
             redraw = False
-        elif keypress.lower() == b'?':
+        elif keypress == '?':
             listhotkeys()
             print("\nPress any key to continue...",flush=True,end="")
-            getch()
+            getchwrap()
         else:
             redraw = False
     
@@ -258,7 +275,7 @@ def setupmenus():
 def deletepostiteration(post):
     """Loop iterator to delete posts"""
     
-    currfile = GetCurrFilePath(post,directory="taggarden\\")
+    currfile = GetCurrFilePath(post,directory=taggardenpath)
     if os.path.exists(currfile):
         os.remove(currfile)
         PrintChar('.')
@@ -310,7 +327,7 @@ def setupmenuglobals(defaultmenu,setupmenudict):
     menuitems = OrderedDict(setupmenudict[defaultmenu])
     menutags = list(menuitems.keys())
     menubanner =getmenubanner(menuitems)
-    menukeys = list(map(lambda x:x[1]['hotkey'].encode('ascii'),menuitems.items()))
+    menukeys = list(map(lambda x:x[1]['hotkey'],menuitems.items()))
 
 def getmenubanner(menudict):
     return ' '.join(list(map(lambda x:"%s.[%%s]%s"%(x[1]['hotkey'],x[1]['header']),menudict.items()))) + (" [%s]Remove" if useimplications else "")
@@ -410,7 +427,7 @@ def listhotkeys():
     print("      0 - 9: Toggle tags on or off")
     print("        Del: Quick remove of all tags")
     print("      Enter: Submit tag changes")
-    print("        Esc: Exit program")
+    print("        Esc: Exit program (Double Esc on Linux)")
     print("  Backspace: Goto previous post")
     print("         F5: Refresh screen")
     print("          F: Download and display fullsize image")
@@ -429,6 +446,41 @@ def updateconsolesize():
     global consoleheight,consolewidth
     if resizeterminal:
         consolewidth,consoleheight = get_terminal_size()
+
+def openmimeobject(mimepath):
+    if GetCurrentOS() == "Windows":
+        temp = os.startfile(mimepath)
+    else:
+        temp = subprocess.call(["xdg-open", mimepath])
+
+def getchwrap():
+    key = getch()
+    if type(key) == bytes:
+        key = key.decode()
+    return key.lower()
+
+def clearscreen():
+    if GetCurrentOS() == "Windows":
+        temp = os.system('cls')
+    else:
+        temp = os.system('clear')
+
+def processescape():
+    if GetCurrentOS() == "Windows":
+        exit(0)
+    ch = getchwrap()
+    if ch == ESCAPEKEY:
+        exit(0)
+    elif ch != '[':
+        return
+    ch = getchwrap()
+    if ch == '3':
+        return 'delete'
+    elif ch != '1':
+        return
+    ch = getchwrap()
+    if ch == '5':
+        return 'refresh'
 
 #Main function
 
@@ -460,12 +512,12 @@ def main(args):
         if len(args.tags) == 0:
             print("Error: No tags specified!\n\"--download\" requires that \"--tags\" be used.")
             exit(-1)
-        IDPageLoop('posts',100,DownloadPostImageIteration,addonlist=[GetArgUrl2('tags',searchtags)],inputs={'directory':'taggarden\\'})
+        IDPageLoop('posts',100,DownloadPostImageIteration,addonlist=[GetArgUrl2('tags',searchtags)],inputs={'directory':taggardenpath})
         return 0
     
     if args.delete:
         if len(args.tags) == 0:
-            deletedirectory = workingdirectory + imagefilepath + 'taggarden\\'
+            deletedirectory = workingdirectory + imagefilepath + taggardenpath
             deletefilelist =  [os.path.join(deletedirectory,fn) for fn in next(os.walk(deletedirectory))[2]]
             for deletefile in deletefilelist:
                 os.remove(deletefile)
@@ -503,9 +555,9 @@ def main(args):
         updateconsolesize()
     else:
         print("\"terminal.py\" missing! Setting console to constant width and height.")
-        if current_os == "Windows":
+        if GetCurrentOS() == "Windows":
             os.system("mode con: cols=%d lines=%d" % (consolewidth,consoleheight))
-        elif current_os == "Linux":
+        else:
             os.system("stty cols %d" % consolewidth)
             os.system("stty rows %d" % consoleheight)
     

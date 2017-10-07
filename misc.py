@@ -7,6 +7,8 @@ import sys
 import time
 import inspect
 import hashlib
+import platform
+
 try:
     import requests
 except ImportError:
@@ -16,10 +18,28 @@ except ImportError:
 #LOCAL GLOBALS
 
 debugModule = {}
+currentOS = None
 
 #EXTERNAL FUNCTIONS
 
+#PLATFORM IMPORTS
+
 #General functions
+
+def GetCurrentOS():
+    """Set and return the current platform"""
+    global currentOS
+    
+    if currentOS != None:
+        return currentOS
+    else:
+        currentOS = platform.system()
+        if currentOS in ['Linux', 'Darwin'] or currentOS.startswith('CYGWIN'):
+            currentOS = "Linux"
+        elif currentOS != "Windows":
+            print("Program use is currently only for Windows/Linux!")
+            exit(-1)
+        return currentOS
 
 def BlankFunction(*args,**kwargs):
     pass
@@ -208,10 +228,16 @@ def GetDirectoryListing(directory):
     return [filename for filename in next(os.walk(directory))[2]]
 
 def GetDirectory(filepath):
-    return filepath[:filepath.rfind('\\')]
+    if GetCurrentOS() == 'Windows':
+        return filepath[:filepath.rfind('\\')]
+    else:
+        return filepath[:filepath.rfind('/')]
 
 def GetFilename(filepath):
-    return filepath[filepath.rfind('\\')+1:]
+    if GetCurrentOS() == 'Windows':
+        return filepath[filepath.rfind('\\')+1:]
+    else:
+        return filepath[filepath.rfind('/')+1:]
 
 def GetHTTPDirectory(webpath):
     return webpath[:webpath.rfind('/')+1]
