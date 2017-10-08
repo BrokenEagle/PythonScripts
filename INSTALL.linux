@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Run: cp INSTALL.linux install.sh ; chmod +x install.sh ; ./install.sh
+
+# Install packages
+echo "Installing packages..."
+sudo apt-get -y install python3.5 python3-pip
+
+# Install Python modules
+echo "Installing Python modules..."
+pip3 install --upgrade --user pip
+pip3 install --upgrade --user iso8601
+pip3 install --upgrade --user requests
+pip3 install --upgrade --user getch
+pip3 install --upgrade --user pixivpy
+
+# Set Python path
+echo "Setting Python path..."
+
+# Get directories
+SITEDIR=$(python3 -m site --user-site)
+CURRENTDIR=$(pwd)
+
+# Create if doesn't exist
+mkdir -p "$SITEDIR"
+
+# Create new .pth file with our path
+echo "$CURRENTDIR/lib" > "$SITEDIR/pythonscripts.pth"
+
+echo "Done!"
