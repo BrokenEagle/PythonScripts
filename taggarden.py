@@ -55,7 +55,7 @@ consoleheight = 25
 #Constants
 menuconfigfile = workingdirectory + datafilepath + 'taggarden-config.txt'
 seenlistfile = workingdirectory + datafilepath + 'taggarden-seenlist.txt'
-taggardenpath = taggardenpath if GetCurrentOS() == "Windows" else 'taggarden/'
+taggardenpath = 'taggarden\\' if GetCurrentOS() == "Windows" else 'taggarden/'
 bannerstring = "Post (%d/%d): <post #%d>"
 helpstring = "? for hotkeys"
 delayalt = 1.5        #time to wait before pressing Alt
@@ -173,13 +173,12 @@ def executemainmenu(post,currpos):
             else:
                 redraw = False
         elif keypress in BACKSPACE:
-            if len(taggardenpostiteration.backwardsarray) == 0:
+            postindex = taggardenpostiteration.backwardsarray.index(postid) if postid in taggardenpostiteration.backwardsarray else -1
+            if len(taggardenpostiteration.backwardsarray) == 0 or postindex == 0:
                 redraw = False
                 continue
-            try:
-                backpostid = taggardenpostiteration.backwardsarray[taggardenpostiteration.backwardsarray.index(postid)-1]
-            except ValueError:
-                backpostid = taggardenpostiteration.backwardsarray[-1]
+            postindex = postindex -1 if postindex > 0 else postindex
+            backpostid = taggardenpostiteration.backwardsarray[postindex]
             DebugPrintInput("Backwards info:",postid,backpostid,taggardenpostiteration.backwardsarray)
             backpost = SubmitRequest('show','posts',id=backpostid)
             currpos[0] -= 1
