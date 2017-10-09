@@ -31,4 +31,8 @@ echo "$CURRENTDIR/lib" > "$SITEDIR/pythonscripts.pth"
 echo "Setting execution permission..."
 chmod +x *.py
 
+#Remind user to setup global variables
+echo ""
+echo "Ensure to setup global variables in lib/myglobal.py !!!"
+
 echo "Done!"

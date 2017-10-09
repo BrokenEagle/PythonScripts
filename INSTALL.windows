@@ -63,8 +63,15 @@ IF NOT DEFINED PYTHONPATH (
     )
 )
 
+::Remind user to setup global variables
+echo.
+echo Ensure to setup global variables in lib/myglobal.py !!!
+
 :: UNSETTING VARIABLES
 SET TempPath=
 SET PYTHONMAINPATH=
 SET PYTHONSCRIPTPATH=
+
+echo Done!
+
 @echo on
