@@ -1,6 +1,6 @@
 1. Original Environment Details
 
-    a. Operating System -    Windows 7
+    a. Operating System -    Windows 7 / Ubuntu 16
     b. Script Language -     Python 3.5
 
 2. Library Files
@@ -17,27 +17,27 @@
 
 3. Application Files
 
-    a. userreport.py -       Collects data for the preceding month for various categories
-        (Currently being reworked)
+    a. taggarden.py -       Interactive tagging for Danbooru
     
-    b. toptags.py -          Collects data for the preceding month on top taggers
-        (Currently being reworked)
+    b. checkpixivimages.py - Organizes a collection of images downloaded from Pixiv.
     
-    c. taggarden.py -        Interactive tagging for Danbooru
-    
-    d. checkpixivimages.py - Organizes a collection of images downloaded from Pixiv.
+    c. watchdog.py          Monitors a Python program and restarts as needed
 
 4. Other Files
 
-    a. tagdict.txt -     Contains 60K+ tag entries; Will drastically reduce the amount
-                         of tag misses as compared to starting a brand new tag dictionary.
-    
-    b. INSTALL.windows - Sets up environment variables.
+    a.  Installation files
+
+        Installs packages and required modules, and sets environment variables.
+
+        - INSTALL.windows - Rename to a .bat file and run.
+        - INSTALL.linux - Rename to a .sh file, set execution permission, and run.
 
 5. Setup
 
-    a. Adjust settings in myglobal.py
-    
+    a. Run installation files. Refer to section 4 above.
+
+    b. Adjust settings in myglobal.py
+
         username:           Your Danbooru username.
         apikey:             Your Danbooru apikey; found on Danbooru user profile under API Key.
         pixivusername:      Your Pixiv username.
@@ -50,10 +50,6 @@
                             table gets saved.
         imagefilepath:      Directory in workingdirectory where images from Danbooru will
                             be downloaded to.
-    
-    b. Move the tagdict.txt into the "workingdirectory" (this step is only for userreport.py)
-    
-    c. Change the file extension of the install file to .bat and run.
 
 6. Usage Notes
 
@@ -70,14 +66,17 @@
 
   b. taggarden.py
 
-    The program uses the systems native file opener, which for the system of development
-    was IrfanView for JPG/PNG, Internet Explorer for GIF, and Media Player Classic for WEBM.
+    The program uses the systems native file opener, which for Windows was IrfanView for JPG/PNG,
+    Internet Explorer for GIF, and Media Player Classic for WEBM.  For Linux, Geeqie was used
+    for JPG/PNG/GIF.  The execution parameters for Geeqie was "geeqie -r %F" in its .desktop file.
+    The default application for a MIME type can be set in the ~/.config/mimeapps.list. See
+    https://wiki.archlinux.org/index.php/default_applications for more information.
     
     With implications.py, the program will show all tags related by implications, and present
     them for removal as needed.
     
     With keyoutput.py, the program sends an Alt+Tab (which is configurable) to the system to
-    gain back focus after opening up the file. 
+    gain back focus after opening up the file (Windows Only). 
     
     With terminalsize.py, the console window can be resized and adjusted on the fly using F5.
     
@@ -92,3 +91,10 @@
     Danbooru.  This includes whether the image name is properly formatted, whether the image
     exists on Danbooru and/or Pixiv, and whether the image is an MD5 match with Danbooru
     and/or Pixiv.
+
+  d. watchdog.py
+
+    Have a global variable "watchdogfile" in the monitored application that points to a file.
+    Have the application continue to write to or touch that file in the main execution loop to
+    establish its heartbeat. Adjust the parameters on the watchdog application as necessary to
+    restart the application when a lockup has been detected.
