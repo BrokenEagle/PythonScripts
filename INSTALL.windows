@@ -59,7 +59,7 @@ IF NOT DEFINED PYTHONPATH (
         setx PYTHONPATH "%PYTHONPATH%;%CD%\lib"
         type NUL > INSTALLED.env
     ) else (
-        echo Path already installed
+        echo Path already installed!
     )
 )
 
