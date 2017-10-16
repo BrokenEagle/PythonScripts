@@ -42,6 +42,16 @@ disregardtags = ['tagme','commentary','check_commentary','translated','partially
 danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('/create_or_update.json','PUT'),'count':('counts/posts.json','GET')}
 danbooru_methods = {'GET':requests.get,'POST':requests.post,'PUT':requests.put,'DELETE':requests.delete}
 
+#CLASSES
+
+class DanbooruError(Exception):
+    """Exception raised for errors with Danbooru.
+    Attributes:
+        message -- explanation of the error
+    """
+    def __init__(self, message):
+        self.message = message
+
 #EXTERNAL FUNCTIONS
 
 def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
@@ -63,8 +73,11 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
     if urladdons != '':
         urlsubmit = urlsubmit + '?' + urladdons
     httpmethod = danbooru_ops[opname][1]
+    connection_retries = server_errors = 0
     while True:
         #Failures occur most often in two places. The first is communicating with Danbooru
+        if connection_retries > 2:
+            raise DanbooruError("Too many connection errors")
         DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
         try:
             danbooruresp = danbooru_methods[httpmethod](urlsubmit,data=senddata,auth=(username,apikey),headers={'Content-Type':'application/x-www-form-urlencoded'})
@@ -72,7 +85,9 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
             print("\nSubmitRequest timed out!")
             continue
         except requests.exceptions.ConnectionError:
-            print("\nSubmitRequest Connection error!")
+            print("\nSubmitRequest Connection error! Sleeping 30 seconds...")
+            time.sleep(30)
+            connection_retries +=1
             continue
         DebugPrint(repr(danbooruresp.text),safe=True)
         DebugPrintInput(danbooruresp.status_code,danbooruresp.reason)
@@ -84,13 +99,16 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
                 time.sleep(10)
                 continue
             elif danbooruresp.status_code >= 500 and danbooruresp.status_code < 600:
+                if server_errors > 2:
+                    return -2
                 print("\nServer error! Sleeping 30 seconds...")
                 time.sleep(30)
+                server_errors += 1
                 continue
             else:
                 print("\nServer error!",danbooruresp.status_code,danbooruresp.reason)
                 SafePrint(urlsubmit,senddata,httpmethod)
-                return -1
+                return -3
         break
     DebugPrint("Before Eval")
     try: 
