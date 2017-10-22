@@ -222,9 +222,9 @@ def GetDirectoryListing(directory):
 
 def GetDirectory(filepath):
     if GetCurrentOS() == 'Windows':
-        return filepath[:filepath.rfind('\\')]
+        return filepath[:filepath.rfind('\\')+1]
     else:
-        return filepath[:filepath.rfind('/')]
+        return filepath[:filepath.rfind('/')+1]
 
 def GetFilename(filepath):
     if GetCurrentOS() == 'Windows':
