@@ -181,6 +181,19 @@ def PostChangeTags(post,tagarray,silence=False):
     if not silence:
         PrintChar('.')
 
+def GetPostDict(postids):
+    """Quicker way to get a list of post instances"""
+    postiddict = {}
+    if len(postids) == 0:
+        return postiddict
+    for i in range(0,len(postids),100):
+        urladdons = JoinArgs(GetArgUrl2('tags','id:'+','.join(map(lambda x:str(x),postids[slice(i,i+100)]))+' status:any'),GetLimitUrl(100))
+        postlist = SubmitRequest('list','posts',urladdons=urladdons)
+        for post in postlist:
+            postiddict[post['id']] = post
+        PrintChar('.')
+    return postiddict
+
 #LOOP CONSTRUCTS
 
 def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,reverselist=False):
