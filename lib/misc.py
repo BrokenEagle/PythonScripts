@@ -3,6 +3,7 @@
 
 #PYTHON IMPORTS
 import os
+import re
 import sys
 import time
 import inspect
@@ -14,6 +15,7 @@ import platform
 
 debugModule = {}
 currentOS = None
+romanrg = re.compile(r'^M?M?M?(CM|CD|D?C?C?C?)(XC|XL|L?X?X?X?)(IX|IV|V?I?I?I?)$',re.IGNORECASE)
 
 #EXTERNAL FUNCTIONS
 
@@ -299,6 +301,12 @@ def MakeUnicodePrintable(string):
 def PrintChar(char):
     print(char, end="", flush=True)
 
+def TitleExcept(string):
+    return ' '.join(map(lambda x:x.title() if x not in ['a', 'an', 'of', 'the', 'is'] else x,string.split()))
+
+def TitleRoman(string):
+    return ' '.join(map(lambda x:x.upper() if romanrg.match(x) else TitleExcept(x),string.split()))
+
 #Time functions
 
 def GetCurrentTime():
@@ -350,7 +358,7 @@ def AddDays(timestring,days):
     return time.strftime("%Y-%m-%d",(time.gmtime(time.mktime(time.strptime(timestring,"%Y-%m-%d"))+DaysToSeconds(days))))
 
 def GetDate(epochtime):
-	return time.strftime("%Y-%m-%d",time.gmtime(epochtime))
+    return time.strftime("%Y-%m-%d",time.gmtime(epochtime))
 
 #Debug functions
 def TurnDebugOn(modulename=None):
