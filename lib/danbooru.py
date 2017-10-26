@@ -161,55 +161,17 @@ def GetTagCount(tagname):
 
 def CheckIQDBUrl(checkurl):
     """Query Danbooru's IQDB server using a URL as the input"""
-    retry = 0
-    while True:
-        try:
-            iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('url',checkurl),auth=(username,apikey),timeout=60)
-        except requests.exceptions.ReadTimeout:
-            print("\nIQDB Request timed out!")
-            continue
-        except requests.exceptions.ConnectionError:
-            print("\nIQDB Connection error!")
-            continue
-        if iqdbresp.status_code != 200:
-            if iqdbresp.status_code == 404:
-                return -1
-            elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
-                if retry >= 2:
-                    return -3
-                print("\nServer error! Sleeping 30 seconds...")
-                time.sleep(30)
-                retry += 1
-                continue
-            else:
-                print("Server error!",checkurl,iqdbresp.status_code,iqdbresp.reason)
-                return -2
-        break
-    return list(map(lambda x:x['post']['id'],iqdbresp.json()))
+    return _CheckIQDB(GetArgUrl2('url',checkurl))
 
 def CheckIQDBPost(checkid):
     """Query Danbooru's IQDB server using a post ID as the input"""
-    while True:
-        try:
-            iqdbresp = requests.get(booru_domain + '/iqdb_queries.json?'+GetArgUrl2('post_id',checkid),auth=(username,apikey))
-        except requests.exceptions.ReadTimeout:
-            print("\nIQDB Request timed out!")
-            continue
-        except requests.exceptions.ConnectionError:
-            print("\nIQDB Connection error!")
-            continue
-        if iqdbresp.status_code != 200:
-            if iqdbresp.status_code == 404:
-                return -1
-            elif iqdbresp.status_code >= 500 and iqdbresp.status_code < 600:
-                print("Server error! Sleeping 30 seconds...")
-                time.sleep(30)
-                continue
-            else:
-                print("Server error!",checkid,iqdbresp.status_code,iqdbresp.reason)
-                return -1
-        break
-    return list(map(lambda x:x['post']['id'],iqdbresp.json()))
+    return _CheckIQDB(GetArgUrl2('post_id',checkid))
+
+def _CheckIQDB(urladd):
+    IQDBdata = SubmitRequest('list','iqdb_queries',urladdons=urladd)
+    if isinstance(IQDBdata,int):
+        return IQDBdata
+    return list(map(lambda x:x['post']['id'],IQDBdata))
 
 def PostChangeTags(post,tagarray,silence=False):
     """Add a list of tags to a post"""
