@@ -222,6 +222,9 @@ def TouchFile(fname, times=None):
 def GetDirectoryListing(directory):
     return [filename for filename in next(os.walk(directory))[2]]
 
+def GetSubdirectoryListing(directory):
+    return [subdir for subdir in next(os.walk(directory))[1]]
+
 def GetDirectory(filepath):
     if GetCurrentOS() == 'Windows':
         return filepath[:filepath.rfind('\\')+1]
@@ -245,6 +248,10 @@ def GetHTTPFilename(webpath):
 
 def GetFileExtension(filepath):
     return filepath[filepath.rfind('.')+1:]
+
+def GetFileNameOnly(filepath):
+    filename = GetFilename(filepath)
+    return filename[:filename.rfind('.')]
 
 def PutGetRaw(filepath,optype,data=None):
     CreateDirectory(filepath)
