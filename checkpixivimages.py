@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #CHECKPIXIVIMAGES.PY
 
 #PYTHON IMPORTS

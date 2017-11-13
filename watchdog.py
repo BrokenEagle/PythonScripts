@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #WATCHDOG.PY
 
 #PYTHON IMPORTS
@@ -12,11 +13,12 @@ from argparse import ArgumentParser
 #LOCAL IMPORTS
 from misc import GetFilename,GetCurrentTime,TurnDebugOn,DebugPrint,TouchFile
 
-#MODULE GLOBAL VARIABLES
+#LOCAL GLOBALS
 
 watchdogfile = ""
-
 pythonfileregex = re.compile(r'^(.*)\.py$')
+
+#Helper functions
 
 def StartProcess(commandline):
     TouchFile(watchdogfile)
@@ -41,6 +43,8 @@ def GetWatchdogInfo(program):
     except AttributeError:
         print("Module",modulename,"does not have value 'watchdogfile'")
         exit(-1)
+
+#Main function
 
 def main(args):
     if args.debug:
