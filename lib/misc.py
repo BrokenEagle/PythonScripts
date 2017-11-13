@@ -254,7 +254,8 @@ def GetFileNameOnly(filepath):
     return filename[:filename.rfind('.')]
 
 def PutGetRaw(filepath,optype,data=None):
-    CreateDirectory(filepath)
+    if filepath != os.devnull:
+        CreateDirectory(filepath)
     with open(filepath, optype) as f:
         if optype[0] in ['w','a']:
             f.write(data)
@@ -273,16 +274,17 @@ def PutGetUnicode(filepath,optype,data=None):
     elif optype[0] == 'r':
         return eval((PutGetRaw(filepath,optype[0]+'b')).decode('UTF'))
 
-def LoadInitialValues(file,defaultvalues=None,unicode=False,isnew=False):
+def LoadInitialValues(file,defaultvalues=None,unicode=False,isnew=False,silence=False):
         if os.path.exists(file) and not isnew:
-            print("Opening",file)
+            if not silence:
+                print("Opening",file)
             if unicode: 
                 return PutGetUnicode(file,'r')
             return PutGetData(file,'r')
         elif defaultvalues==None:
-            if isnew:
+            if isnew and not silence:
                 print("No default values")
-            else:
+            elif not silence:
                 print(file,"not found")
             return -1
         else:
@@ -293,7 +295,7 @@ def WriteUnicode(outfile,string):
 
 def FindUnicode(string):
     for i in range(0,len(string)):
-        if ord(string[i]) > 0x7f:
+        if (isinstance(string,str) and ord(string[i]) > 0x7f) or (isinstance(string,bytes) and string[i] > 0x7f):
             return i
     return -1
 
@@ -302,7 +304,7 @@ def MakeUnicodePrintable(string):
         ret = FindUnicode(string)
         if ret < 0:
             break
-        string = string[:ret] + hex(ord(string[ret])) + string[ret+1:]
+        string = string[:ret] + (hex(ord(string[ret])) if isinstance(string,str) else hex(string[ret]).encode()) + string[ret+1:]
     return string
 
 def PrintChar(char):
