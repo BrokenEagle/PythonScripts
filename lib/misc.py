@@ -169,7 +169,7 @@ def IsRemoveItem(prelist,postlist):
 def GetRemoveItem(prelist,postlist):
     return list(set(prelist).difference(postlist))
 
-#IO/String functions
+#IO functions
 
 def CreateDirectory(filepath):
     """Create the directory path if it doesn't already exist"""
@@ -293,6 +293,8 @@ def LoadInitialValues(file,defaultvalues=None,unicode=False,isnew=False,silence=
 def WriteUnicode(outfile,string):
     outfile.write(string.encode('UTF'))
 
+#String functions
+
 def FindUnicode(string):
     for i in range(0,len(string)):
         if (isinstance(string,str) and ord(string[i]) > 0x7f) or (isinstance(string,bytes) and string[i] > 0x7f):
@@ -315,6 +317,11 @@ def TitleExcept(string):
 
 def TitleRoman(string):
     return ' '.join(map(lambda x:x.upper() if romanrg.match(x) else TitleExcept(x),string.split()))
+
+def MaxStringLength(string,length):
+    if len(string) > length:
+        string = string[:length-3]+'...'
+    return string
 
 #Time functions
 
@@ -415,4 +422,3 @@ def SafePrint(*args,**kwargs):
             temp += repr(arg) + ' '
     temp.strip()
     print(temp.encode('ascii','backslashreplace').decode(),**kwargs)
-
