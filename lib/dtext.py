@@ -56,7 +56,7 @@ def CreateArray(orderlist,*args):
             if arg=={}:
                 continue
             if id not in arg:
-                row += ["ID not found"]
+                row += ["None"]
                 continue
             if isinstance(arg[id],list):
                 row += arg[id]
