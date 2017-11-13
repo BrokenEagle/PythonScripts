@@ -21,9 +21,16 @@
     
     b. checkpixivimages.py - Organizes a collection of images downloaded from Pixiv.
     
-    c. watchdog.py          Monitors a Python program and restarts as needed
+    c. watchdog.py -        Monitors a Python program and restarts as needed
+    
+    d. userreport.py -      Collects and outputs various data from Danbooru
 
-4. Other Files
+4. Module directories
+
+    a. report - A code repository that handles configuration for each of the various controllers
+                from Danbooru and the associated reports for each one.
+
+5. Other Files
 
     a.  Installation files
 
@@ -32,7 +39,7 @@
         - INSTALL.windows - Rename to a .bat file and run.
         - INSTALL.linux - Rename to a .sh file, set execution permission, and run.
 
-5. Setup
+6. Setup
 
     a. Run installation files. Refer to section 4 above.
 
@@ -51,7 +58,7 @@
         imagefilepath:      Directory in workingdirectory where images from Danbooru will
                             be downloaded to.
 
-6. Usage Notes
+7. Usage Notes
 
   a. userreport.py
 
@@ -98,3 +105,10 @@
     Have the application continue to write to or touch that file in the main execution loop to
     establish its heartbeat. Adjust the parameters on the watchdog application as necessary to
     restart the application when a lockup has been detected.
+
+  e. userreport.py
+
+    The program collects metrics and outputs them in various formats (CSV/JSON and Dtext) for
+    all of the controllers on Danbooru.  It collates them by day period, which facilitates
+    combining various date periods dynamically, and also reduces the amount of time needed to
+    collect the whole report in one go as it can be collected periodically as needed.
