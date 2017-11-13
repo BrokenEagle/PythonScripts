@@ -5,8 +5,8 @@ import os
 import time
 
 #MY IMPORTS
-from danbooru import SubmitRequest,JoinArgs,GetSearchUrl,GetLimitUrl
-from misc import RemoveDuplicates,PutGetData,HasDayPassed,PrintChar
+from danbooru import SubmitRequest,JoinArgs,GetSearchUrl,GetLimitUrl,GetPageUrl,IDPageLoop
+from misc import RemoveDuplicates,PutGetData,HasDayPassed,PrintChar,LoadInitialValues,GetCurrentTime
 from myglobal import workingdirectory,datafilepath
 
 #LOCAL GLOBALS
@@ -14,8 +14,10 @@ from myglobal import workingdirectory,datafilepath
 max_records = 100
 refresh_period = 7
 implicationfile = workingdirectory + datafilepath + 'implications.txt'
+allimplicationsfile = workingdirectory + datafilepath + 'allimplications.txt'
 forwardimplicationdict = {}
 reverseimplicationdict = {}
+revallimpdict = {}
 
 #External functions
 def GetTagImplications(tag):
@@ -33,6 +35,15 @@ def GetTagImplications(tag):
     PrintChar('\n')
     
     return implicationdata[tag]['implications']
+
+def RemoveParents(taglist):
+    revallimpdict = GetAllReverseImplicationDict()
+    templist = taglist.copy()
+    for tag in taglist:
+        relations = AllRelations(tag,revallimpdict)
+        if len(set(relations).intersection(taglist)) > 0:
+            templist.remove(tag)
+    return templist
 
 #Internal functions
 
@@ -93,3 +104,42 @@ def getallrelatedtags(tag_name,tag_consequents):
                 tag_list += [antecedent] + getallantecedents(antecedent)
                 tags_seen += [antecedent]
     return RemoveDuplicates(tag_list)
+
+def GetAllImplicationDict():
+    global allimpdict
+    
+    allimpdict,expires = LoadInitialValues(allimplicationsfile,[{},0])
+    if HasDayPassed(GetCurrentTime(),expires,refresh_period):
+        print("Building implication dict...")
+        startid = [GetPageUrl(1000000)]
+        IDPageLoop('tag_implications',500,GetAllImplicationIteration,firstloop=startid,inputs={'allimpdict':allimpdict})
+        PutGetData(allimplicationsfile,'w',[allimpdict,GetCurrentTime()])
+    return allimpdict
+
+def GetAllImplicationIteration(implication,allimpdict):
+    if implication['status'] == 'pending':
+        return 0
+    key = implication['antecedent_name']
+    value = implication['consequent_name']
+    allimpdict[key] = allimpdict[key] + [value] if key in allimpdict else [value]
+    return 0
+
+def GetAllReverseImplicationDict():
+    global revallimpdict
+    
+    if revallimpdict == {}:
+        allimpdict = GetAllImplicationDict()
+        revallimpdict = {}
+        for key in allimpdict:
+            for item in allimpdict[key]:
+                revallimpdict[item] = revallimpdict[item] + [key] if item in revallimpdict else [key]
+    return revallimpdict
+
+def AllRelations(tag,impdict):
+	tmp = []
+	if tag in impdict:
+		for ctag in impdict[tag]:
+			tmp += [ctag] + AllRelations(ctag,impdict)
+		return tmp
+	else:
+		return []
