@@ -1,7 +1,7 @@
 #REPORT/CONTROLLERS/COMMENT/CATEGORY.PY
 
 #LOCAL IMPORTS
-from danbooru import GetArgUrl2,SubmitRequest,MetatagExists,IsDisregardTag,IDPageLoop
+from danbooru import GetArgUrl2,SubmitRequest,IDPageLoop
 from misc import StaticVars,GetDate,SetPrecision,IncDictEntry
 
 #MODULE IMPORTS

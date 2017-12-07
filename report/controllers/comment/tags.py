@@ -4,7 +4,6 @@
 from collections import Counter
 
 #LOCAL IMPORTS
-from danbooru import MetatagExists,IsDisregardTag
 from misc import SetPrecision
 
 #MODULE IMPORTS
@@ -17,8 +16,6 @@ from .. import comment
 def CategoryIterator(indict,option):
     post = GetPost(indict['post_id'])
     for tag in post['tag_string_'+option].split():
-        if MetatagExists(tag) or IsDisregardTag(tag):
-            continue
         yield tag
 
 def TagCategoryFilter(indict,option):

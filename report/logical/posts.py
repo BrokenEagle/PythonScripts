@@ -1,8 +1,9 @@
 #REPORT/LOGICAL/POSTS.PY
 
-#PYTHON IMPORTS
-from danbooru import SubmitRequest,IDPageLoop,ProcessTimestamp,GetArgUrl2,MetatagExists,IsDisregardTag
+#LOCAL IMPORTS
+from danbooru import SubmitRequest,IDPageLoop,ProcessTimestamp,GetArgUrl2,MetatagExists
 from misc import StaticVars,GetDate,HasDayPassed,DaysToSeconds,SecondsToDays,PrintChar,IncDictEntry
+from .tags import IsDisregardTag
 
 #LOCAL GLOBALS
 

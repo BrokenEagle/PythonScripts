@@ -24,7 +24,7 @@ def PopulateUserTagDict(userid,usertagdict,taglist):
             continue
         category = tags.TagCategory(tag)
         if userid not in usertagdict: 
-            usertagdict[userid]={0:{},1:{},2:{},3:{},4:{}}
+            usertagdict[userid]={0:{},1:{},2:{},3:{},4:{},5:{}}
         usertagdict[userid][category][tag] = (usertagdict[userid][category][tag] + 1) if (tag in usertagdict[userid][category]) else 1
 
 #JSON functions
@@ -38,7 +38,7 @@ def WritePostJSONFiles(userdict):
     yield 'alluser' , CreateUserJSONFile(allusertagdict)
     yield 'allsite' , CreateSiteJSONFile(usertagdict)
 
-jsontagtypedict = {0:'gentags',4:'chartags',3:'copytags',1:'arttags',2:'emptytags'}
+jsontagtypedict = {0:'gentags',4:'chartags',3:'copytags',1:'arttags',2:'emptytags',5:'metatags'}
 def CreateUserJSONFile(usertagdict):
     usertags = []
     for user in usertagdict:
@@ -49,7 +49,7 @@ def CreateUserJSONFile(usertagdict):
     return usertags
 
 def CreateSiteJSONFile(usertagdict):
-    sitetags = {'gentags':{},'arttags':{},'emptytags':{},'copytags':{},'chartags':{}}
+    sitetags = {'gentags':{},'arttags':{},'emptytags':{},'copytags':{},'chartags':{},'metatags':{}}
     for user in usertagdict:
         for category in usertagdict[user]:
             for tag in usertagdict[user][category]:
