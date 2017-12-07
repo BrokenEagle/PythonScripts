@@ -253,6 +253,15 @@ def GetFileNameOnly(filepath):
     filename = GetFilename(filepath)
     return filename[:filename.rfind('.')]
 
+def GetDirectorySeparator():
+    if GetCurrentOS() == "Windows":
+        return "\\"
+    else:
+        return "/"
+
+def JoinDirectories(directorylist):
+    return GetDirectorySeparator().join(directorylist)
+
 def PutGetRaw(filepath,optype,data=None):
     if filepath != os.devnull:
         CreateDirectory(filepath)
