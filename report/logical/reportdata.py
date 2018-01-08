@@ -177,10 +177,8 @@ class ReportData:
                 priordict = MinimumCutoffDict(priordict,self.cutoffcolumn[0],self.cutoffcolumn[1])
             priordict = self.maketable(priordict,option)
             DebugPrintInput("Priordict:",priordict.keys())
-            input()
             tablecolumns += [GetRankColumn(indict,priordict,sortcolumn,reversecolumn)]
             DebugPrintInput("Tableprior:",tablecolumns)
-            input()
             dtextheaders = ['Rank Diff']
         else:
             dtextheaders = []
