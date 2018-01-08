@@ -273,7 +273,7 @@ def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
 #LOOP HELPERS
 
 def FormatStartID(startid,above=False):
-    return [GetPageUrl(startid,above)] if startid != 0 else []
+    return [GetPageUrl(startid,above)] if (startid != 0 or above==True) else []
 
 #LOOP ITERABLES
 
