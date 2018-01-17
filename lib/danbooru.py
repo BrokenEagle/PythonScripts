@@ -499,10 +499,10 @@ def SourceCount(string):
 
 #TAG SPECIFIC FUNCTIONS
 
-def GetTagCategory(tagname):
+def GetTagCategory(tagname,hideempty = "yes"):
     """Query danbooru for the category of a tag"""
     #Send tag query to Danbooru
-    urladd = GetSearchUrl('name',tagname)
+    urladd = JoinArgs(GetSearchUrl('name',tagname),GetSearchUrl("hide_empty",hideempty))
     taglist = SubmitRequest('list','tags',urladdons = urladd)
     #If the length of the list is one, then we found an exact match
     if len(taglist) == 1:
