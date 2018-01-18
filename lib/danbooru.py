@@ -205,6 +205,8 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
     urladd = JoinArgs(GetLimitUrl(limit),*firstloop,*addonlist)
     while True:
         typelist = SubmitRequest('list',type,urladdons=urladd)
+        if isinstance(typelist,int):
+            return typelist
         if len(typelist) == 0:
             postprocess(typelist,**inputs)
             return currentid
@@ -233,6 +235,8 @@ def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=B
     while True:
         urladd = JoinArgs(GetLimitUrl(limit),GetPageNumUrl(page),*addonlist)
         typelist = SubmitRequest('list',type,urladdons=urladd)
+        if isinstance(typelist,int):
+            return typelist
         if len(typelist) == 0:
             postprocess(typelist,**inputs)
             return page
