@@ -215,11 +215,7 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
         if len(typelist) == 0:
             postprocess(typelist,**inputs)
             return currentid
-        if reverselist:
-            iteratelist = reversed(typelist)
-        else:
-            iteratelist = typelist
-        for item in iteratelist:
+        for item in typelist:
             currentid = item['id']
             if iteration(item,**inputs) < 0:
                 postprocess(typelist,**inputs)
@@ -228,10 +224,7 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
             postprocess(typelist,**inputs)
             return currentid
         postprocess(typelist,**inputs)
-        if reverselist:
-            urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid,above=True),*addonlist)
-        else:
-            urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid),*addonlist)
+        urladd = JoinArgs(GetLimitUrl(limit),GetPageUrl(currentid,above=reverselist),*addonlist)
         PrintChar(':')
 
 def NumPageLoop(type,limit,iteration,addonlist=[],inputs={},page=1,postprocess=BlankFunction):
