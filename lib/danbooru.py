@@ -135,11 +135,16 @@ def GetServFilePath(postdict,size="medium"):
     Input is a post dictionary obtained from Danbooru with either 'list' or 'show'.
     """
     if size=="small":
-        return booru_domain + postdict["preview_file_url"]
+        return GetImageFilePath(postdict["preview_file_url"])
     if size=="medium":
-        return booru_domain + postdict["large_file_url"]
+        return GetImageFilePath(postdict["large_file_url"])
     if size=="large":
-        return booru_domain + postdict["file_url"]
+        return GetImageFilePath(postdict["file_url"])
+
+def GetImageFilePath(url):
+    if url[0] == '/':
+        return booru_domain + url
+    return url
 
 def DownloadPostImage(postdict,size="medium",directory=""):
     """Download a post image from Danbooru"""
