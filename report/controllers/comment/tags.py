@@ -38,7 +38,7 @@ def TagColumnTransform(indict,**kwargs):
 #Report variables
 reportname = 'tags'
 dtexttitle = "Comment - Top 10 Tags"
-dtextheaders = ['Tag Name','Tags/ Post','Posts','Comments','Bump','Update','#Pos','#Neg','Sum Score','Delete']
+dtextheaders = ['Tag Name','Comments/ Post','Posts','Comments','Bump','Update','#Pos','#Neg','Sum Score','Delete']
 transformfuncs = [None,None,None,None,None,None,None,None,None]
 dtexttransform = TagDtextTransform
 maketable = TagCategoryFilter

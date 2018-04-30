@@ -32,7 +32,7 @@ def RatingColumnTransform(indict,**kwargs):
 
 reportname = 'rating'
 dtexttitle = "Comment - Top 10 Tags - Rating"
-dtextheaders = ['Rating','Tags/ Post','Posts','Comments','Bump','Update','#Pos','#Neg','Sum Score','Delete']
+dtextheaders = ['Rating','Comments/ Post','Posts','Comments','Bump','Update','#Pos','#Neg','Sum Score','Delete']
 transformfuncs = [None,None,None,None,None,None,None,None,None]
 dtexttransform = RatingDtextTransform
 csvheaders = ['rating','total','bump','update','pos_count','neg_count','cum_score','delete']
