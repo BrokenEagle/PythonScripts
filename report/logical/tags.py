@@ -27,6 +27,10 @@ def GetTagDict():
         
         @atexit.register
         def savetagfile():
+            print("Checking tagdict...")
+            for tag in list(tagdict.keys()):
+                if FindUnicode(tag) >= 0 or len(tag) > 255:
+                    tagdict.pop(tag)
             print("Saving",tagdictfile)
             #Try writing to null first so that we don't clobber the actual tag file upon write error
             try:
