@@ -73,19 +73,22 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
     if urladdons != '':
         urlsubmit = urlsubmit + '?' + urladdons
     httpmethod = danbooru_ops[opname][1]
-    connection_retries = server_errors = 0
+    connection_retries = server_errors = timeout_retries = 0
     while True:
         #Failures occur most often in two places. The first is communicating with Danbooru
         if connection_retries > 2:
             raise DanbooruError("Too many connection errors")
         DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
         try:
-            danbooruresp = danbooru_methods[httpmethod](urlsubmit,data=senddata,auth=(username,apikey),headers={'Content-Type':'application/x-www-form-urlencoded'})
+            danbooruresp = danbooru_methods[httpmethod](urlsubmit,data=senddata,auth=(username,apikey),headers={'Content-Type':'application/x-www-form-urlencoded'},timeout=15)
         except requests.exceptions.ReadTimeout:
             print("\nSubmitRequest timed out!")
+            if timeout_retries > 2:
+                return -4
+            timeout_retries += 1
             continue
-        except requests.exceptions.ConnectionError:
-            print("\nSubmitRequest Connection error! Sleeping 30 seconds...")
+        except requests.exceptions.ConnectionError as e:
+            print("\nSubmitRequest Connection error! Sleeping 30 seconds...",e)
             time.sleep(30)
             connection_retries +=1
             continue
@@ -102,6 +105,7 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
                 if server_errors > 2:
                     return -2
                 print("\nServer error! Sleeping 30 seconds...")
+                print(urlsubmit,senddata,httpmethod)
                 time.sleep(30)
                 server_errors += 1
                 continue
@@ -176,7 +180,7 @@ def _CheckIQDB(urladd):
     IQDBdata = SubmitRequest('list','iqdb_queries',urladdons=urladd)
     if isinstance(IQDBdata,int):
         return IQDBdata
-    return list(map(lambda x:x['post']['id'],IQDBdata))
+    return list(map(lambda x:x['post']['id'],IQDBdata)) if IQDBdata != None else []
 
 def PostChangeTags(post,tagarray,silence=False):
     """Add a list of tags to a post"""
@@ -186,7 +190,7 @@ def PostChangeTags(post,tagarray,silence=False):
     if not silence:
         PrintChar('.')
 
-def GetPostDict(postids):
+def GetPostDict(postids,silence=False):
     """Quicker way to get a list of post instances"""
     postiddict = {}
     if len(postids) == 0:
@@ -196,12 +200,30 @@ def GetPostDict(postids):
         postlist = SubmitRequest('list','posts',urladdons=urladdons)
         for post in postlist:
             postiddict[post['id']] = post
-        PrintChar('.')
+        if not silence:
+            PrintChar('.')
     return postiddict
+
+def GetTypeDictFast(type,typeids,silence=False):
+    """
+    Quicker way to get a list of type instances (not posts)
+    For posts, use GetPostDict instead.
+    """
+    typeiddict = {}
+    if len(typeids) == 0:
+        return typeiddict
+    for i in range(0,len(typeids),100):
+        urladdons = JoinArgs(GetSearchUrl('id',','.join(map(lambda x:str(x),typeids[slice(i,i+100)]))),GetLimitUrl(100))
+        itemlist = SubmitRequest('list',type,urladdons=urladdons)
+        for item in itemlist:
+            typeiddict[item['id']] = item
+        if not silence:
+            PrintChar('.')
+    return typeiddict
 
 #LOOP CONSTRUCTS
 
-def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,reverselist=False):
+def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,preprocess=BlankFunction,reverselist=False):
     """Standard loop using 'ID' pages to iterate
     'firstloop' is for types that require the pageID to sort properly, e.g. forum topics,
     or for continuing from the last saved location, such as in the case of a crash
@@ -215,6 +237,7 @@ def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postproc
         if len(typelist) == 0:
             postprocess(typelist,**inputs)
             return currentid
+        preprocess(typelist,**inputs)
         iteratelist = reversed(typelist) if reverselist else typelist
         for item in iteratelist:
             currentid = item['id']
@@ -257,7 +280,7 @@ def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
     for num in idlist.copy():
         item = SubmitRequest('show',type,id=num)
         if isinstance(item,int) or len(item) == 0:
-            print("%s #%d not found!" % (type.title(),num))
+            print("%s #%d not found!" % (type.title(),num if num else 0))
             idlist.remove(num)
             postprocess([],**inputs)
             continue
@@ -273,10 +296,50 @@ def IDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
         counter += 1
     postprocess([],**inputs)
 
+def PostIDListLoop(limit,idlist,iteration,inputs={},postprocess=BlankFunction):
+    """Faster loop for iterating through a list of post IDs"""
+    for i in range(0,len(idlist),limit):
+        idmetatag = 'id:' + ','.join(map(str,idlist[i:i+limit]))
+        urladd = JoinArgs(GetArgUrl2('tags',idmetatag),GetLimitUrl(limit))
+        posts = SubmitRequest('list','posts',urladdons=urladd)
+        if isinstance(posts,int):
+            return posts
+        if len(posts) == 0:
+            postprocess(posts,**inputs)
+            return i
+        for post in posts:
+            if iteration(post,**inputs) < 0:
+                postprocess(posts,**inputs)
+                return i
+        postprocess(posts,**inputs)
+        if len(posts) < limit:
+            return i + len(posts)
+        PrintChar(':')
+
+def FastIDListLoop(type,limit,idlist,iteration,inputs={},postprocess=BlankFunction):
+    """Faster loop for iterating through a list of type IDs"""
+    for i in range(0,len(idlist),limit):
+        iteridstr = ','.join(map(str,idlist[i:i+limit]))
+        urladd = JoinArgs(GetSearchUrl('id',iteridstr),GetLimitUrl(limit))
+        typelist = SubmitRequest('list',type,urladdons=urladd)
+        if isinstance(typelist,int):
+            return typelist
+        if len(typelist) == 0:
+            postprocess(typelist,**inputs)
+            return i
+        for item in typelist:
+            if iteration(item,**inputs) < 0:
+                postprocess(typelist,**inputs)
+                return i
+        postprocess(typelist,**inputs)
+        if len(typelist) < limit:
+            return i + len(typelist)
+        PrintChar(':')
+
 #LOOP HELPERS
 
 def FormatStartID(startid,above=False):
-    return [GetPageUrl(startid,above)] if (startid != 0 or above==True) else []
+    return [GetPageUrl(startid,above)] if ((startid != None) and (startid > 0 or above==True)) else []
 
 def GetLastID(typelist,above=False):
     reducefunc = max if above else min

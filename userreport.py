@@ -44,7 +44,7 @@ def main(args):
         PrintChar('\n')
         if startid >= 0:
             print("Starting main loop...")
-            lastid = globalhandler.StartLoop(UserReportIteration,UserReportPostprocess,{'userdict':userdict},startid)
+            lastid = globalhandler.StartLoop(UserReportIteration,UserReportPostprocess,UserReportPreprocess,{'userdict':userdict},startid)
             PrintChar('\n')
     
     if args.output:
@@ -80,13 +80,15 @@ def OutputProducts(args):
 #Misc functions
 
 def InitializeGlobals(args):
-    global globalhandler,typefilename,globalstarttime,globalendtime,globaldate,globalreports,globaldebug
+    global globalhandler,typefilename,globalstarttime,globalendtime,globaldate,globalreports,globaldebug,globalcategory
     
     if args.debug:
         TurnDebugOn('report.'+args.category)
         globaldebug = True
     else:
         globaldebug = False
+    
+    globalcategory = args.category
     
     globaldate = args.date
     globalstarttime = ProcessTimestamp("%sT00:00:00.000Z"%args.date)
@@ -266,6 +268,13 @@ def UserReportIteration(item,userdict,**kwargs):
         if handler.reportname in globalmissingreports:
             handler.UpdateData(userid,userdict,item)
     return 0
+
+def UserReportPreprocess(typelist,**kwargs):
+    #if UserReportIteration.startedyet:
+    if True:
+        for handler in globalhandler.reporthandlers:
+            if handler.reportname in globalmissingreports and handler.preprocess != None:
+                handler.preprocess(typelist)
 
 @StaticVars(currentday = 0,savereport = True)
 def UserReportPostprocess(typelist,userdict,**kwargs):

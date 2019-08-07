@@ -1,7 +1,6 @@
 #REPORT/CONTROLLERS/POST/KEEPER.PY
 
 #PYTHON IMPORTS
-import json
 
 #LOCAL IMPORTS
 from danbooru import IsUpload,SubmitRequest
@@ -34,14 +33,11 @@ def UpdateKeeperData(userid,userdict,postver):
     if post == None or post['keeper_data'] == None:
         #print("Returned none",postver['post_id'])
         return
-    if isinstance(post['keeper_data'],dict):
+    try:
         keeperid = post['keeper_data']['uid']
-    elif isinstance(post['keeper_data'],str):
-        try:
-            keeperid = json.loads(post['keeper_data'])['uid']
-        except:
-            print("Error data check",post)
-            exit(0)
+    except:
+        print("Error data check",post)
+        exit(0)
     
     if userid != keeperid:
         userdict[userid][1] += 1

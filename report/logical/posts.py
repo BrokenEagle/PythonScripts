@@ -1,9 +1,9 @@
 #REPORT/LOGICAL/POSTS.PY
 
 #LOCAL IMPORTS
-from danbooru import SubmitRequest,IDPageLoop,ProcessTimestamp,GetArgUrl2,MetatagExists
+from danbooru import SubmitRequest,IDPageLoop,ProcessTimestamp,GetArgUrl2,MetatagExists,GetPostDict
 from misc import StaticVars,GetDate,HasDayPassed,DaysToSeconds,SecondsToDays,PrintChar,IncDictEntry
-from .tags import IsDisregardTag
+from .tags import IsDisregardTag,GetTagDict
 
 #LOCAL GLOBALS
 
@@ -17,6 +17,11 @@ def GetPost(postid):
         post = SubmitRequest('show','posts',id=postid)
         GetPost.postiddict[postid] = post
     return GetPost.postiddict[postid]
+
+def PreloadPosts(postid_list):
+    get_postids = list(set(postid_list).difference(GetPost.postiddict.keys()))
+    adds_postiddict = GetPostDict(get_postids,True)
+    GetPost.postiddict.update(adds_postiddict)
 
 @StaticVars(postdatedict={})
 def GetPostsByDate(starttime,endtime):
@@ -49,8 +54,11 @@ def GetPostsByDate(starttime,endtime):
     return GetPostsByDate.postdatedict[index]
 
 @StaticVars(postcountdict={})
-def GetPostCount(tag,starttime,endtime):
+def GetPostCount(checktag,starttime,endtime):
     if GetPostCount.postcountdict == {}:
+        #Preload tag dict
+        if not MetatagExists(checktag):
+            tagdict = GetTagDict()
         postlist = GetPostsByDate(starttime,endtime)
         for post in postlist:
             for tag in post['tag_string'].split():
@@ -58,4 +66,5 @@ def GetPostCount(tag,starttime,endtime):
                     continue
                 IncDictEntry(GetPostCount.postcountdict,tag)
             IncDictEntry(GetPostCount.postcountdict,'rating:'+ratingdict[post['rating']])
-    return GetPostCount.postcountdict[tag] if tag in GetPostCount.postcountdict else 0
+    print("GetPostCount:",checktag,GetPostCount.postcountdict[checktag] if checktag in GetPostCount.postcountdict else 0)
+    return GetPostCount.postcountdict[checktag] if checktag in GetPostCount.postcountdict else 0

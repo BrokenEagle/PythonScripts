@@ -25,11 +25,11 @@ def UpdateArtistData(userid,userdict,currversiondata,priorversiondata):
         DebugPrint("Name")
         dirty = 1
         userdict[userid][2] += 1
-    if currversiondata['other_names'] != priorversiondata['other_names']:
+    if len(set(currversiondata['other_names']).symmetric_difference(priorversiondata['other_names'])):
         DebugPrint("Other Name")
         dirty = 1
         userdict[userid][3] += 1
-    if currversiondata['url_string'] != priorversiondata['url_string']:
+    if len(set(currversiondata['urls']).symmetric_difference(priorversiondata['urls'])):
         DebugPrint("URL")
         dirty = 1
         userdict[userid][4] += 1

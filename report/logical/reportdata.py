@@ -20,7 +20,7 @@ class ReportData:
     reportvars = [
         'reportname','dtexttitle','dtextheaders','csvheaders','extracolumns','tablecutoffs','sortcolumns',
         'reversecolumns','transformfuncs','maketable','dtexttransform','tableoptions','reporttype','subkeys',
-        'jsoniterator','footertext','cutoffcolumn']
+        'jsoniterator','footertext','cutoffcolumn','preprocess']
     defaultvalues = {
         'sortcolumns': [0],
         'reporttype': 'csv',
@@ -31,12 +31,13 @@ class ReportData:
         'subkeys': [],
         'jsoniterator': None,
         'footertext': None,
-        'cutoffcolumn': None
+        'cutoffcolumn': None,
+        'preprocess':None
         }
     
     def __init__(self,updatefunc,iterator,keycolumn,reportname,dtexttitle,dtextheaders,csvheaders,extracolumns,
             tablecutoffs,sortcolumns,reversecolumns,transformfuncs,maketable,dtexttransform,tableoptions,
-            reporttype,subkeys,jsoniterator,footertext,cutoffcolumn):
+            reporttype,subkeys,jsoniterator,footertext,cutoffcolumn,preprocess):
         self.reportname = reportname
         self.dtexttitle = dtexttitle
         self.dtextheaders = dtextheaders
@@ -59,6 +60,7 @@ class ReportData:
         self.jsoniterator = jsoniterator
         self.footertext = footertext
         self.cutoffcolumn = cutoffcolumn
+        self.preprocess = preprocess
     
     def SetController(self,controller):
         self.controller = controller
@@ -183,9 +185,11 @@ class ReportData:
         else:
             dtextheaders = []
         indict = MinimumCutoffDict(indict,cutoff,sortcolumn)
-        DebugPrintInput("Indict:",indict.keys())
+        DebugPrintInput("Indict 1:",indict.keys())
         indict = self.dtexttransform(indict,starttime=starttime,endtime=endtime)
+        DebugPrintInput("Indict 2:",indict.keys())
         indict = OrderedDict(sorted(indict.items(), key=lambda x:x[1][sortcolumn], reverse=reversecolumn))
+        DebugPrintInput("Indict 3:",indict.keys())
         tablecolumns += [self.keycolumn(indict)]
         dtextheaders += [self.dtextheaders[0]]
         if priordict != {}:
@@ -200,7 +204,7 @@ class ReportData:
                     createuserid=ctrl.createuserid,addonlist=self.controller.urladds,\
                     starttime=starttime,endtime=endtime)
                 ]
-        DebugPrintInput(tablecolumns,safe=True)
+        DebugPrintInput(indict.keys(),tablecolumns,safe=True)
         tablelist = CreateArray(indict.keys(),*tablecolumns)
         DebugPrintInput(tablelist,safe=True)
         return ConstructTable(dtextheaders,tablelist)

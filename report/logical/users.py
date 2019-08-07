@@ -5,7 +5,7 @@ from types import MethodType
 
 #LOCAL IMPORTS
 from misc import GetCallerModule,PrintChar,StaticVars,DebugPrint,MaxStringLength
-from danbooru import IDPageLoop,GetTypeDict,GetSearchUrl,PrintChar
+from danbooru import IDPageLoop,GetTypeDictFast,GetSearchUrl,PrintChar
 
 #MODULE IMPORTS
 from . import reportdata
@@ -45,7 +45,7 @@ def GetUserIDDict(useridlist):
     DebugPrint("Checklist:",checklist)
     if len(checklist) > 0:
         print("Getting user list...")
-        GetUserIDDict.useriddict.update(GetTypeDict('users',checklist))
+        GetUserIDDict.useriddict.update(GetTypeDictFast('users',checklist))
         PrintChar('\n')
     return GetUserIDDict.useriddict
 

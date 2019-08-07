@@ -1,12 +1,12 @@
 #REPORT/CONTROLLERS/COMMENT/CATEGORY.PY
 
 #LOCAL IMPORTS
-from danbooru import GetArgUrl2,SubmitRequest,IDPageLoop
+from danbooru import GetArgUrl2,SubmitRequest,IDPageLoop,GetPostCount
 from misc import StaticVars,GetDate,SetPrecision,IncDictEntry
 
 #MODULE IMPORTS
 from ...logical.reportdata import ReportData
-from ...logical.posts import GetPost,GetPostCount,ratingdict
+from ...logical.posts import GetPost,ratingdict
 from .. import comment
 
 #Functions
@@ -17,9 +17,11 @@ def RatingIterator(indict,option):
 
 def RatingDtextTransform(indict,starttime,endtime):
     datacolumns = {}
-    
+    startdate = GetDate(starttime)
+    enddate = GetDate(endtime)
     for rating in indict:
-        posts = GetPostCount('rating:'+rating,starttime,endtime)
+        print("RatingDtextTransform:",rating)
+        posts = GetPostCount("rating:%s date:%s..%s" % (rating,enddate,startdate))
         if posts > 0:
             datacolumns[rating] = [SetPrecision(indict[rating][0]/posts,2),posts] + indict[rating]
     return datacolumns

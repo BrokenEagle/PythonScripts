@@ -136,13 +136,14 @@ def UploadTransform(userdict,starttime,endtime):
     datacolumns = {}
     print("Transforming upload table...")
     for key in userdict:
-        scoredict,favdict,score = GetFavScore(useriddict[key]['name'],starttime,endtime)
+        scoredict,favdict,score,deleted = GetUserPostData(useriddict[key]['name'],starttime,endtime)
         scorelist = reduce(lambda x,y:x+y,map(lambda x:[x[0]]*x[1],scoredict.items()))
         favlist = reduce(lambda x,y:x+y,map(lambda x:[x[0]]*x[1],favdict.items()))
         scoremean = SetPrecision(statistics.mean(scorelist),2)
         favmean = SetPrecision(statistics.mean(favlist),2)
         scorestdev = SetPrecision(statistics.stdev(scorelist),2)
         favstdev = SetPrecision(statistics.stdev(favlist),2)
+        userdict[key][2] = deleted
         datacolumns[key] = userdict[key][:15] + [str(score[0])+', ('+str(score[1])+')',scoremean,scorestdev,favmean,favstdev]
     PrintChar('\n')
     return datacolumns
@@ -154,18 +155,20 @@ def UploadMemberType(userdict,option):
     elif option == 'contributor':
         return {k: v for k, v in userdict.items() if k in contributorlist}
 
-def GetFavScore(username,starttime,endtime):
+def GetUserPostData(username,starttime,endtime):
     scoredict = {}
     favdict = {}
     score = [0,0]
+    deleted = 0
     
     def iterator(post):
-        nonlocal scoredict,favdict,score
+        nonlocal scoredict,favdict,score,deleted
         
         IncDictEntry(scoredict,post['score'])
         IncDictEntry(favdict,post['fav_count'])
         score[0] += post['up_score']
         score[1] += post['down_score']
+        deleted += 1 if post['is_deleted'] else 0
         return 0
     
     startdate = GetDate(starttime)
@@ -174,7 +177,7 @@ def GetFavScore(username,starttime,endtime):
     
     PrintChar('F')
     IDPageLoop('posts',200,iterator,urladds)
-    return scoredict,favdict,score
+    return scoredict,favdict,score,deleted
 
 reportname = 'upload'
 dtexttitle = "Upload Details"

@@ -187,6 +187,7 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=Fa
     CreateDirectory(localfilepath)
     #Does the file already exist with a size > 0
     if (not os.path.exists(localfilepath)) or ((os.stat(localfilepath)).st_size == 0):
+        retries = 0
         while True:
             try:
                 response = requests.get(serverfilepath,headers=headers,timeout=timeout)
@@ -203,8 +204,10 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=Fa
             if response.status_code == 200:
                 break
             if response.status_code >= 500 and response.status_code < 600:
+                if retries <=2:
                     print("Server Error! Sleeping 30 seconds...")
                     time.sleep(30)
+                    retries += 1
                     continue
             if not userinput or not AbortRetryFail(serverfilepath,(response.status_code,response.reason)):
                 print(serverfilepath,response.status_code,response.reason)

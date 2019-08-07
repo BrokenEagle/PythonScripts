@@ -5,7 +5,7 @@ import os
 import atexit
 
 #LOCAL IMPORTS
-from misc import LoadInitialValues,DebugPrint,FindUnicode,PutGetUnicode,PrintChar,StaticVars
+from misc import LoadInitialValues,DebugPrint,FindUnicode,PutGetUnicode,PrintChar,StaticVars,PrintChar
 from danbooru import MetatagExists,GetTagCategory
 from myglobal import workingdirectory
 
@@ -66,7 +66,7 @@ def TagCategory(tagitem):
         return 2
     TagCategory.tagmiss = True
     tagdict[tagitem] = GetTagCategory(tagitem)
-    DebugPrint(".",end="",flush=True)
+    PrintChar("T")
     return tagdict[tagitem]
 
 def RevTagCategory(tagitem):

@@ -1,6 +1,7 @@
 #PIXIVAPIWRAP.PY
 
 #PYTHON IMPORTS
+import os
 import sys
 try:
     from pixivpy3 import PixivAPI
@@ -8,9 +9,13 @@ except ImportError:
     print("Install PixivPy module: pip install pixivpy --upgrade")
     exit(-1)
 
-#MY IMPORTS
-from misc import GetCurrentTime,AbortRetryFail
-from myglobal import pixivusername,pixivpassword
+#LOCAL IMPORTS
+from misc import GetCurrentTime,AbortRetryFail,PutGetData
+from myglobal import pixivusername,pixivpassword,workingdirectory,datafilepath
+
+#LOCAL GLOBALS
+
+savetokenfile = workingdirectory + datafilepath + "pixivapiwrap.txt"
 
 #CLASSES
 
@@ -23,13 +28,15 @@ class PixivAPIWrapper(PixivAPI):
     
     def __init__(self):
         super(PixivAPIWrapper, self).__init__(**self._REQUESTS_KWARGS)
-        print("Authenticating with Pixiv...")
-        self.WrapLogin()
+        if self.__CheckSavedCredentials():
+            print("Authenticating with Pixiv...")
+            self.WrapLogin()
     
     def WrapLogin(self):
         self.logontime = GetCurrentTime()
         token = self.login(self._USERNAME,self._PASSWORD)
         self.timeout = token['response']['expires_in']
+        PutGetData(savetokenfile,'w',[self.logontime, self.timeout, self.access_token, self.user_id, self.refresh_token])
     
     def Execute(self,funcname,*args,responseonly=True,processerror=True,**kwargs):
         self.__CheckTimeout()
@@ -60,3 +67,11 @@ class PixivAPIWrapper(PixivAPI):
         if (GetCurrentTime() - self.logontime) > self.timeout:
             print("Reauthenticating with Pixiv...")
             self.WrapLogin()
+    
+    def __CheckSavedCredentials(self):
+        if os.path.exists(savetokenfile):
+            print("Loading cached credentials")
+            self.logontime, self.timeout, self.access_token, self.user_id, self.refresh_token = PutGetData(savetokenfile,'r')
+            self.__CheckTimeout()
+            return False
+        return True

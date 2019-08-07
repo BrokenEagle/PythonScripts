@@ -38,12 +38,12 @@ class ReportController:
         self.versioned = versioned
         self.footertext = controller.replace('_versions','').replace('_',' ') + ' changes' if versioned else controller.replace('_',' ')
     
-    def StartLoop(self,iterator,postprocess,inputdata,startid):
+    def StartLoop(self,iterator,postprocess,preprocess,inputdata,startid):
         if startid == 0:
             startid = FormatStartID(self.startvalue)
         else:
             startid = FormatStartID(startid)
-        lastid = IDPageLoop(self.controller,self.querylimit,iterator,self.urladds,inputdata,startid,postprocess)
+        lastid = IDPageLoop(self.controller,self.querylimit,iterator,self.urladds,inputdata,startid,postprocess,preprocess)
         return lastid
     
     def GetPriorVersion(self,currversiondata):
