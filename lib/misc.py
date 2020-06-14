@@ -386,20 +386,29 @@ def GetDate(epochtime):
     return time.strftime("%Y-%m-%d",time.gmtime(epochtime))
 
 #Debug functions
+def ProcessDebugArgs(input):
+    if input is None: return
+    debug_modules = input.split()
+    for module in debug_modules:
+        if module == 'self':
+            TurnDebugOn()
+        else:
+            TurnDebugOn(module)
+
 def TurnDebugOn(modulename=None):
     global debugModule
     if (modulename==None):
-        modulename = GetCallerModule(2).f_globals['__name__']
+        modulename = GetModulename()
     debugModule[modulename] = True
 
 def TurnDebugOff(modulename=None):
     global debugModule
     if modulename==None:
-        modulename = GetCallerModule(2).f_globals['__name__']
+        modulename = GetModulename()
     temp = debugModule.pop(modulename)
 
-def GetDebugName():
-    print("Module name:",GetCallerModule(2).f_globals['__name__'])
+def GetModulename():
+    GetCallerModule(2).f_globals['__name__']
 
 def GetLineNumber():
     return inspect.getframeinfo(GetCallerModule(2)).lineno
@@ -407,8 +416,11 @@ def GetLineNumber():
 def GetFileName():
     return GetFilename(inspect.getframeinfo(GetCallerModule(2)).filename)
 
+def IsDebug():
+    return GetModulename() in debugModule
+
 def DebugPrintInput(*args,safe=False,**kwargs):
-    if GetCallerModule(2).f_globals['__name__'] in debugModule:
+    if IsDebug():
         if safe:
             SafePrint(*args,**kwargs)
         else:
@@ -416,7 +428,7 @@ def DebugPrintInput(*args,safe=False,**kwargs):
         input()
 
 def DebugPrint(*args,safe=False,**kwargs):
-    if GetCallerModule(2).f_globals['__name__'] in debugModule:
+    if IsDebug():
         if safe:
             SafePrint(*args,**kwargs)
         else:
