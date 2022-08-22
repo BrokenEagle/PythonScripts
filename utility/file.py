@@ -4,6 +4,7 @@
 import os
 import time
 import json
+import urllib
 import pathlib
 
 # ## LOCAL IMPORTS
@@ -12,24 +13,38 @@ from .data import decode_unicode, decode_json, get_buffer_checksum
 
 # ## FUNCTIONS
 
-# #### Filename functions
+# #### Directory path functions
 
-def get_http_filename(webpath):
-    start = webpath.rfind('/') + 1
-    isextras = webpath.rfind('?')
-    end = isextras if isextras > 0 else len(webpath) + 1
-    return webpath[start:end]
-
-
-def get_file_extension(filepath):
-    return filepath[filepath.rfind('.') + 1:]
+def get_http_directory_path(webpath):
+    parse = urllib.parse.urlparse(webpath)
+    netpath = pathlib.PurePath(parse.path).parent.as_posix()
+    return f"{parse.scheme}://{parse.netloc}{netpath}"
 
 
 def get_directory_path(filepath):
-    return str(pathlib.Path(filepath).parent.resolve())
+    return str(pathlib.PurePath(filepath).parent) + os.path.sep
 
 
-# #### File functions
+# #### Filename functions
+
+def get_http_filename(webpath):
+    parse = urllib.parse.urlparse(webpath)
+    return pathlib.PurePath(parse.path).name
+
+
+def get_file_name(filepath):
+    return pathlib.PurePath(filepath).name
+
+
+def get_file_stem(filepath):
+    return pathlib.PurePath(filepath).stem
+
+
+def get_file_extension(filepath):
+    return '.'.join(pathlib.PurePath(filepath).suffixes)
+
+
+# #### Directory functions
 
 def get_directory_listing(directory):
     try:
@@ -59,6 +74,18 @@ def delete_directory(filepath):
         os.rmdir(filepath)
         # Time to let the OS remove the directory to prevent OS errors
         time.sleep(0.01)
+
+
+# #### File functions
+
+def create_open(*args, **kwargs):
+    create_directory(args[0])
+    return open(*args, **kwargs)
+
+
+def touch_file(fname, times=None):
+    with open(fname, 'a'):
+        os.utime(fname, times)
 
 
 def put_get_raw(filepath, optype, data=None, unicode=False):
@@ -100,13 +127,6 @@ def put_get_json(filepath, optype, data=None, unicode=False):
             return decode_json(load)
 
 
-def load_default(filepath, defaultvalue, binary=False, unicode=False):
-    optype = 'rb' if binary else 'r'
-    if os.path.exists(filepath):
-        return put_get_json(filepath, optype, unicode=unicode)
-    return defaultvalue
-
-
 def copy_file(old_filepath, new_filepath, safe=False):
     if os.path.exists(old_filepath):
         buffer = put_get_raw(old_filepath, 'rb')
@@ -131,3 +151,10 @@ def delete_file(filepath):
 def move_file(old_filepath, new_filepath, safe=False):
     copy_file(old_filepath, new_filepath, safe)
     delete_file(old_filepath)
+
+
+def load_default(filepath, defaultvalue, binary=False, unicode=False):
+    optype = 'rb' if binary else 'r'
+    if os.path.exists(filepath):
+        return put_get_json(filepath, optype, unicode=unicode)
+    return defaultvalue
