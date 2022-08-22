@@ -1,4 +1,4 @@
-#DANBOORU.PY
+# SOURCES/DANBOORU.PY
 
 #Include functions related to Danbooru here
 
