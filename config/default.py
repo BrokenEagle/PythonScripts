@@ -1,38 +1,71 @@
-#MYGLOBAL.PY
-"""Primary use is to store environment variables"""
+# CONFIG/DEFAULT.PY
 
-#GLOBAL VARIABLES
+# ## DIRECTORY VARIABLES
 
-#Other domains include hijiribe, sonohara, and testbooru
-booru_domain = "http://danbooru.donmai.us"
-
-"""Remove the preceding and following triple apostrophes ''' in the Windows or Linux section"""
-
-###WINDOWS###
-'''
+'''WINDOWS'''
 """Filepaths need to end with a double backslash ('\\')"""
 """All backslashes ('\') in a filepath need to be double escaped ('\\')"""
-workingdirectory = "D:\\temp\\"
-datafilepath = "data\\"
-csvfilepath = "csv\\"
-jsonfilepath = "json\\"
-dtextfilepath = "dtext\\"
-imagefilepath = "pictures\\"
-'''
 
-###LINUX###
-'''
+WORKING_DIRECTORY = 'C:\\Temp\\'
+
+'''LINUX'''
 """Filepaths need to end with a forwardslash ('/')"""
-workingdirectory = "/home/USERNAME/temp/"
-datafilepath = "data/"
-csvfilepath = "csv/"
-jsonfilepath = "json/"
-dtextfilepath = "dtext/"
-imagefilepath = "pictures/"
+'''
+WORKING_DIRECTORY = "/tmp/"
 '''
 
-"""Uncomment the following lines (remove the '#') and enter user specific info"""
-#username = "USERNAME_GOES_HERE"
-#apikey = "API_KEY_GOES_HERE"
-#pixivusername = "USERNAME_GOES_HERE"
-#pixivpassword = "PASSWORD_GOES_HERE"
+"""Subdirectory paths should not begin or end with a directory separator ('\' or '/')"""
+DATA_FILEPATH = 'data'
+CSV_FILEPATH = 'csv'
+JSON_FILEPATH = 'json'
+DTEXT_FILEPATH = 'dtext'
+MEDIA_FILEPATH = 'media'
+TEMP_FILEPATH = 'temp'
+
+"""Path for loading the .env to load environment variables from. Can either be a relative or an absolute path"""
+DOTENV_FILEPATH = None
+
+
+# ## NETWORK VARIABLES
+
+DANBOORU_HOSTNAME = 'https://danbooru.donmai.us'
+
+# #### Danbooru API tokens
+
+DANBOORU_USERNAME = None
+DANBOORU_APIKEY = None
+
+# #### Pixiv browser tokens
+"""Log into Twitter and get these values from the cookies."""
+
+PIXIV_USERNAME = None
+PIXIV_PHPSESSID = None  # PHPSESSID
+
+# #### Twitter browser tokens
+"""Log into Twitter and get these values from the cookies."""
+
+TWITTER_USER_TOKEN = None  # auth_token
+TWITTER_CSRF_TOKEN = None  # ct0
+
+# #### Twitter V1 API tokens
+
+TWITTER_V1_CONSUMER_KEY = None
+TWITTER_V1_CONSUMER_SECRET = None
+TWITTER_V1_ACCESS_TOKEN = None
+TWITTER_V1_ACCESS_SECRET = None
+
+# #### Twitter V2 API tokens
+
+TWITTER_V2_API_KEY = None
+TWITTER_V2_API_KEY_SECRET = None
+TWITTER_V2_API_BEARER_TOKEN = None
+
+# #### Pawoo credentials
+
+PAWOO_USERNAME = None
+PAWOO_PASSWORD = None
+PAWOO_USERID = None
+
+# ## OTHER VARIABLES
+
+DEBUG_MODE = False
