@@ -6,6 +6,9 @@ import os
 import re
 import sys
 import time
+import uuid
+import json
+import gzip
 import inspect
 import hashlib
 import requests
@@ -16,6 +19,8 @@ import platform
 debugModule = {}
 currentOS = None
 romanrg = re.compile(r'^M?M?M?(CM|CD|D?C?C?C?)(XC|XL|L?X?X?X?)(IX|IV|V?I?I?I?)$',re.IGNORECASE)
+#from myglobal import workingdirectory #, temppath
+#TEMP_DIRECTORY = os.path.join(workingdirectory, temppath)
 
 #EXTERNAL FUNCTIONS
 
@@ -181,7 +186,7 @@ def CreateOpen(*args,**kwargs):
     CreateDirectory(args[0])
     return open(*args,**kwargs)
 
-def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=False):
+def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=False,silence=False):
     """Download a remote file to a local location"""
     #Create the directory for the local file if it doesn't already exist
     CreateDirectory(localfilepath)
@@ -207,7 +212,8 @@ def DownloadFile(localfilepath,serverfilepath,headers={},timeout=30,userinput=Fa
                     time.sleep(30)
                     continue
             if not userinput or not AbortRetryFail(serverfilepath,(response.status_code,response.reason)):
-                print(serverfilepath,response.status_code,response.reason)
+                if silence == False:
+                    print(serverfilepath,response.status_code,response.reason)
                 return -1
         with open(localfilepath,'wb') as outfile:
             if not (outfile.write(response.content)):
@@ -220,7 +226,10 @@ def TouchFile(fname, times=None):
         os.utime(fname, times)
 
 def GetDirectoryListing(directory):
-    return [filename for filename in next(os.walk(directory))[2]]
+    try:
+        return [filename for filename in next(os.walk(directory))[2]]
+    except Exception as e:
+        print ("Error with directory listing:", directory, e)
 
 def GetSubdirectoryListing(directory):
     return [subdir for subdir in next(os.walk(directory))[1]]
@@ -262,6 +271,7 @@ def GetDirectorySeparator():
 def JoinDirectories(directorylist):
     return GetDirectorySeparator().join(directorylist)
 
+"""
 def PutGetRaw(filepath,optype,data=None):
     if filepath != os.devnull:
         CreateDirectory(filepath)
@@ -270,18 +280,120 @@ def PutGetRaw(filepath,optype,data=None):
             f.write(data)
         elif optype[0] == 'r':
             return f.read()
+"""
+
+def PutGetRaw(filepath, optype, data=None, safe=False, zip=False):
+    if filepath != os.devnull:
+        CreateDirectory(filepath)
+        if optype[0] == 'r' and not os.path.exists(filepath):
+            return
+    if optype[0] in ['w', 'a']:
+        return PutRaw(filepath, optype, data, safe, zip)
+    elif optype[0] == 'r':
+        return GetRaw(filepath, optype, zip)
+
+# with open(filepath, optype) as file:
+def PutRaw(filepath, optype, data, safe, zip):
+    write, encode, plus = re.match(r'([wa])(b?)(\+?)', optype).groups()
+    if (encode or zip) and not isinstance(data, bytes):
+        data = data.encode('utf')
+    if safe:
+        return SafePutRaw(filepath, optype, data, zip)
+    fopen = gzip.open if zip else open
+    with fopen(filepath, optype) as file:
+        return file.write(data)
+
+def SafePutRaw(filepath, optype, data, zip):
+    # 1. Write the data to disk in a separate location
+    temp_subdir = str(uuid.uuid4())
+    temp_filepath = os.path.join(TEMP_DIRECTORY, temp_subdir, GetFilename(filepath))
+    CreateDirectory(temp_filepath)
+    fopen = gzip.open if zip else open
+    with fopen(temp_filepath, optype) as file:
+        output = file.write(data)
+        if not output:
+            return None
+    time.sleep(0.2) # Give some time for the OS to catch up... reduces exceptions
+    # 2. Read the data from disk and compare to the original
+    check_content = GetRaw(temp_filepath, 'rb', zip)
+    encoded_data = data.encode('utf') if isinstance(data, str) else data
+    if GetBufferChecksum(encoded_data) != GetBufferChecksum(check_content):
+        return None
+    # 3. Get the original data before moving
+    old_data = GetRaw('rb', read_optype, False) if os.path.exists(filepath) else None
+    if not SafeMove(temp_filepath, filepath):
+        # 4. If there was a move error, restore the original data if possible
+        if old_data is not None:
+            for i in range(3):
+                if PutRaw(filepath, 'wb', old_data, False, False):
+                    break
+                time.sleep(0.5)
+            else:
+                raise Exception(f"Unable to save data to file: {filepath}; tmp: {temp_filepath}")
+        return None
+    os.rmdir(os.path.join(TEMP_DIRECTORY, temp_subdir))
+    return output
+
+def SafeMove(old_filepath, new_filepath):
+    try:
+        os.replace(old_filepath, new_filepath)
+    except Exception as e:
+        print(e, old_filepath, new_filepath)
+        return False
+    return True
+
+def GetRaw(filepath, optype, zip):
+    fopen = gzip.open if zip else open
+    [encode, plus] = re.match(r'r(b?)(\+?)', optype).groups()
+    with fopen(filepath, optype) as file:
+        try:
+            load = file.read()
+        except Exception as e:
+            print(e, filepath)
+            return
+    return DecodeUnicode(load) if not encode else load
 
 def PutGetData(filepath,optype,data=None):
     if optype[0] == 'w':
         PutGetRaw(filepath,optype,data=repr(data))
     elif optype[0] == 'r':
-        return eval(PutGetRaw(filepath,optype))
+        load = PutGetRaw(filepath,optype)
+        return eval(load)
 
 def PutGetUnicode(filepath,optype,data=None):
     if optype[0] == 'w':
         PutGetRaw(filepath,optype[0]+'b',data=repr(data).encode('UTF'))
     elif optype[0] == 'r':
         return eval((PutGetRaw(filepath,optype[0]+'b')).decode('UTF'))
+
+def DecodeUnicode(byte_string):
+    if not isinstance(byte_string, bytes):
+        return byte_string
+    try:
+        decoded_string = byte_string.decode('utf')
+    except Exception:
+        print("Unable to decode data!")
+        return
+    return decoded_string
+
+def DecodeJSON(string):
+    try:
+        data = json.loads(string)
+    except Exception:
+        print("Invalid data!")
+        return
+    return data
+
+def PutGetJSON(filepath, optype, data=None, unicode=False):
+    if optype[0] in ['w', 'a']:
+        save_data = json.dumps(data, ensure_ascii=unicode)
+        # Try writing to null device first to avoid clobbering the files upon errors
+        PutGetRaw(os.devnull, optype, save_data, unicode)
+        return PutGetRaw(filepath, optype, save_data, unicode)
+    if optype[0] == 'r':
+        load = PutGetRaw(filepath, optype, None, unicode)
+        if load is not None:
+            return DecodeJSON(load)
 
 def LoadInitialValues(file,defaultvalues=None,unicode=False,isnew=False,silence=False):
         if os.path.exists(file) and not isnew:
@@ -407,8 +519,14 @@ def TurnDebugOff(modulename=None):
         modulename = GetModulename()
     temp = debugModule.pop(modulename)
 
-def GetModulename():
-    GetCallerModule(2).f_globals['__name__']
+def GetModulename(extra=0):
+    module = GetCallerModule(2+extra)
+    return module.f_globals['__name__'] if module.f_globals['__name__'] != '__main__' else GetFileNameOnly(GetCallerModule(2).f_globals['__file__'])
+    #return GetFileNameOnly(GetCallerModule(2).f_globals['__file__'])
+    #return GetCallerModule(2).f_globals['__name__']
+
+def GetFuncName(level):
+    return inspect.stack()[level].function
 
 def GetLineNumber():
     return inspect.getframeinfo(GetCallerModule(2)).lineno
@@ -416,8 +534,8 @@ def GetLineNumber():
 def GetFileName():
     return GetFilename(inspect.getframeinfo(GetCallerModule(2)).filename)
 
-def IsDebug():
-    return GetModulename() in debugModule
+def IsDebug(extra=1):
+    return GetModulename(1+extra) in debugModule
 
 def DebugPrintInput(*args,safe=False,**kwargs):
     if IsDebug():

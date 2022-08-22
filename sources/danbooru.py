@@ -1,23 +1,26 @@
 # SOURCES/DANBOORU.PY
 
-#Include functions related to Danbooru here
-
-#PYTHON IMPORTS
+# PYTHON IMPORTS
 import re
 import time
+import math
 from datetime import datetime
 from functools import reduce
 import argparse
 import urllib.parse
 import requests
 import iso8601
+import logging
 
-#LOCAL IMPORTS
+# PACKAGE IMPORTS
+from config import DANBOORU_USERNAME, DANBOORU_APIKEY, IMAGE_DIRECTORY, BOORU_DOMAIN
+
+# LOCAL IMPORTS
 from misc import DebugPrint,DebugPrintInput,AbortRetryFail,DownloadFile,BlankFunction,\
                 PrintChar,RemoveDuplicates,SafePrint
-from myglobal import username,apikey,workingdirectory,imagefilepath,booru_domain
 
-#LOCAL GLOBALS
+
+# GLOBAL VARIABLES
 
 wikilinkregex = re.compile(r'\[\[([^\|\]]+)\|?[^\]]*\]\]')
 tagsearchregex = re.compile(r'{{([^}]+)}}')
@@ -40,9 +43,17 @@ disregardtags = ['tagme','commentary','check_commentary','translated','partially
 #For building Danbooru URL's and methods on the fly based on the operation type
 #Only list, create, show, update, delete, revert, undo and count have been tested
 danbooru_ops = {'list':('.json','GET'),'create':('.json','POST'),'show':('/%d.json','GET'),'update':('/%d.json','PUT'),'delete':('/%d.json','DELETE'),'revert':('/%d/revert.json','PUT'),'copy_notes':('/%d/copy_notes.json','PUT'),'banned':('banned.json','GET'),'undelete':('/%d/undelete.json','POST'),'undo':('/%d/undo.json','PUT'),'create_or_update':('/create_or_update.json','PUT'),'count':('counts/posts.json','GET')}
+#danbooru_methods = {'GET':cloud_requests.get,'POST':cloud_requests.post,'PUT':cloud_requests.put,'DELETE':cloud_requests.delete}
 danbooru_methods = {'GET':requests.get,'POST':requests.post,'PUT':requests.put,'DELETE':requests.delete}
 
-#CLASSES
+FORM_HEADERS = {'Content-Type': 'application/x-www-form-urlencoded'}
+JSON_HEADERS = {'Content-Type': 'application/json'}
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
+
+# ## CLASSES
 
 class DanbooruError(Exception):
     """Exception raised for errors with Danbooru.
@@ -52,35 +63,51 @@ class DanbooruError(Exception):
     def __init__(self, message):
         self.message = message
 
-#EXTERNAL FUNCTIONS
 
-def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
+# ## FUNCTIONS
+
+def submit_request(opname, typename, id=None, urladdons="", senddata=None, longquery=False, username=None, apikey=None, datatype='form'):
     """Send an API request to Danbooru. The following operations require different positional arguments:
     list: urladdons; show: id; create: senddata; update: id, senddata; delete: id; count: urladdons
     
     Opname and typename are passed in as strings.
     Ex: SubmitRequest('show','posts',id=1234567)
     """
+    username = username if username is not None else DANBOORU_USERNAME
+    apikey = apikey if apikey is not None else DANBOORU_APIKEY
+    if datatype == 'form':
+        headers = FORM_HEADERS
+    elif datatype == 'json':
+        headers = JSON_HEADERS
+    else:
+        raise DanbooruError("Invalid datatype specified for submit_request.")
     retry = 0
     tmr_retry = 0
-    urlsubmit = GetDanbooruUrl(opname,typename)
+    if opname == 'list' and longquery:
+        opname = 'create'
+        senddata = JoinArgs(urladdons, GetArgUrl2('_method', 'get')).encode('UTF')
+        urladdons = ''
+    urlsubmit = GetDanbooruUrl(opname, typename)
     if id != None:
         try:
             urlsubmit = urlsubmit % id
         except TypeError:
-            print("Bad arguments! The opname %s does not take an ID argument." % opname)
+            logger.warning("Bad arguments! The opname %s does not take an ID argument." % opname)
             return -1
     if urladdons != '':
         urlsubmit = urlsubmit + '?' + urladdons
     httpmethod = danbooru_ops[opname][1]
-    connection_retries = server_errors = 0
+    connection_retries = server_errors = timeout_retries = slowdown_errors = 0
     while True:
         #Failures occur most often in two places. The first is communicating with Danbooru
         if connection_retries > 2:
             raise DanbooruError("Too many connection errors")
-        DebugPrintInput(repr(urlsubmit),repr(senddata),repr(httpmethod))
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(repr(urlsubmit), repr(senddata), repr(httpmethod))
+            input("Press key to continue.")
         try:
-            danbooruresp = danbooru_methods[httpmethod](urlsubmit,data=senddata,auth=(username,apikey),headers={'Content-Type':'application/x-www-form-urlencoded'})
+            danbooruresp = danbooru_methods[httpmethod](urlsubmit, data=senddata, auth=(username, apikey),
+                                                        headers=headers, timeout=15)
         except requests.exceptions.ReadTimeout:
             print("\nSubmitRequest timed out!")
             continue
@@ -101,7 +128,9 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
             elif danbooruresp.status_code >= 500 and danbooruresp.status_code < 600:
                 if server_errors > 2:
                     return -2
-                print("\nServer error! Sleeping 30 seconds...")
+                print("\nServer error!",danbooruresp.status_code,danbooruresp.reason,"Sleeping 30 seconds...")
+                print(danbooruresp.headers,danbooruresp.request.headers)
+                PutGetRaw(workingdirectory + 'danbooru-error-' + str(math.floor(time.time())) + '.txt', 'wb', danbooruresp.content)
                 time.sleep(30)
                 server_errors += 1
                 continue
@@ -118,17 +147,18 @@ def SubmitRequest(opname,typename,id = None,urladdons = '',senddata = None):
     DebugPrint("After Eval")
     return data
 
-def GetCurrFilePath(postdict,size="medium",directory=""):
+def GetCurrFilePath(postdict,size="medium",subdirectory="",directory=None):
     """Get filepath for storing server different sized files on local system.
     Input is a post dictionary obtained from Danbooru with either 'list' or 'show'.
     """
+    downloaddirectory = workingdirectory + imagefilepath + subdirectory if directory is None else directory
     if size == "small":
-        return workingdirectory + imagefilepath + directory + postdict["md5"] + '.jpg'
+        return downloaddirectory + str(postdict["id"]) + '--' + postdict["md5"] + '.jpg'
     if size == "medium":
         fileext = postdict["large_file_url"][postdict["large_file_url"].rfind('.'):]
-        return workingdirectory + imagefilepath + directory + postdict["md5"] + fileext
+        return downloaddirectory + str(postdict["id"]) + '--' + postdict["md5"] + fileext
     if size == "large":
-        return workingdirectory + imagefilepath + directory + postdict["md5"] + '.' + postdict["file_ext"]
+        return downloaddirectory + str(postdict["id"]) + '--' + postdict["md5"] + '.' + postdict["file_ext"]
 
 def GetServFilePath(postdict,size="medium"):
     """Get serverpath for different sized files
@@ -146,9 +176,9 @@ def GetImageFilePath(url):
         return booru_domain + url
     return url
 
-def DownloadPostImage(postdict,size="medium",directory=""):
+def DownloadPostImage(postdict,size="medium",subdirectory="",directory=None):
     """Download a post image from Danbooru"""
-    localfilepath = GetCurrFilePath(postdict,size,directory)
+    localfilepath = GetCurrFilePath(postdict,size,subdirectory,directory)
     serverfilepath = GetServFilePath(postdict,size)
     DebugPrintInput(localfilepath,serverfilepath)
     return DownloadFile(localfilepath,serverfilepath)
@@ -199,29 +229,49 @@ def GetPostDict(postids):
         PrintChar('.')
     return postiddict
 
+def GetTypeDictFast(type,typeids,silence=False):
+    """
+    Quicker way to get a list of type instances (not posts)
+    For posts, use GetPostDict instead.
+    """
+    typeiddict = {}
+    if len(typeids) == 0:
+        return typeiddict
+    for i in range(0,len(typeids),100):
+        urladdons = JoinArgs(GetSearchUrl('id',','.join(map(lambda x:str(x),typeids[slice(i,i+100)]))),GetLimitUrl(100))
+        itemlist = SubmitRequest('list',type,urladdons=urladdons)
+        for item in itemlist:
+            typeiddict[item['id']] = item
+        if not silence:
+            PrintChar('.')
+    return typeiddict
+
 #LOOP CONSTRUCTS
 
-def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,reverselist=False):
+def IDPageLoop(type,limit,iteration,addonlist=[],inputs={},firstloop=[],postprocess=BlankFunction,preprocess=BlankFunction,reverselist=False,longquery=False):
     """Standard loop using 'ID' pages to iterate
     'firstloop' is for types that require the pageID to sort properly, e.g. forum topics,
     or for continuing from the last saved location, such as in the case of a crash
     """
-    currentid = -1
+    currentid = 0
     urladd = JoinArgs(GetLimitUrl(limit),*firstloop,*addonlist)
     while True:
-        typelist = SubmitRequest('list',type,urladdons=urladd)
-        if isinstance(typelist,int):
+        typelist = SubmitRequest('list',type,urladdons=urladd,longquery=longquery)
+        if isinstance(typelist,int):    
             return typelist
+        filter_num = len([x for x in typelist if 'id' not in x])
+        typelist = list(filter(lambda x:'id' in x,typelist))
         if len(typelist) == 0:
             postprocess(typelist,**inputs)
             return currentid
+        preprocess(typelist,**inputs)
         iteratelist = reversed(typelist) if reverselist else typelist
         for item in iteratelist:
             currentid = item['id']
             if iteration(item,**inputs) < 0:
                 postprocess(typelist,**inputs)
                 return currentid
-        if len(typelist) < limit:
+        if len(typelist) < (limit - filter_num):
             postprocess(typelist,**inputs)
             return currentid
         postprocess(typelist,**inputs)
@@ -280,7 +330,8 @@ def FormatStartID(startid,above=False):
 
 def GetLastID(typelist,above=False):
     reducefunc = max if above else min
-    return reduce(lambda x,y:reducefunc(x,y),map(lambda x:x['id'],typelist))
+    hasidlist = list(filter(lambda x: 'id' in x, typelist))
+    return reduce(lambda x,y:reducefunc(x,y),map(lambda x:x['id'],hasidlist)) if len(hasidlist) != 0 else -1
 
 #LOOP ITERABLES
 
@@ -306,43 +357,43 @@ def GetContributorIteration(user,contributorlist):
     contributorlist += [user['id']]
     return 0
 
-def DownloadPostImageIteration(post,related=False,size="medium",directory="",lastid=0):
+def DownloadPostImageIteration(post,related=False,size="medium",subdirectory="",directory=None,lastid=0):
     """To be called with loop construct to download images"""
     if lastid >= post['id']:
         return -1
     
     #Download post image from server to local
-    DownloadPostImage(post,size,directory)
+    DownloadPostImage(post,size,subdirectory,directory)
     
     #Are we downloading all child/parent posts?
     if related and (HasChild(post) or HasParent(post)):
         PrintChar('(')
-        DownloadRelatedPostImages(post,[post['id']],size,directory)
+        DownloadRelatedPostImages(post,[post['id']],size,subdirectory,directory)
         PrintChar(')')
     
     #Print some feedback
     PrintChar('.')
     return 0
 
-def DownloadRelatedPostImages(post,alreadydownloaded,size,directory):
+def DownloadRelatedPostImages(post,alreadydownloaded,size,subdirectory,directory):
     """Recursively download all child and parent images"""
     #Download any parent posts
     if HasParent(post) and (post['parent_id'] not in alreadydownloaded):
         parent = SubmitRequest('show','posts',id=post['parent_id'])
-        DownloadPostImage(parent,size,directory)
+        DownloadPostImage(parent,size,subdirectory,directory)
         PrintChar('.')
         alreadydownloaded += [parent['id']]
-        alreadydownloaded = DownloadRelatedPostImages(parent,alreadydownloaded,size,directory)
+        alreadydownloaded = DownloadRelatedPostImages(parent,alreadydownloaded,size,subdirectory,directory)
     #Download any child posts
     if HasChild(post):
         urladd = JoinArgs(GetArgUrl2('tags',"parent:%d" % post['id']))
         childlist = SubmitRequest('list','posts',urladdons=urladd)
         for child in childlist:
             if child['id'] not in alreadydownloaded:
-                DownloadPostImage(child,size,directory)
+                DownloadPostImage(child,size,subdirectory,directory)
                 PrintChar('.')
                 alreadydownloaded += [child['id']]
-                alreadydownloaded = DownloadRelatedPostImages(child,alreadydownloaded,size,directory)
+                alreadydownloaded = DownloadRelatedPostImages(child,alreadydownloaded,size,subdirectory,directory)
     return alreadydownloaded
 
 #EXTERNAL HELPER FUNCTIONS
@@ -377,8 +428,14 @@ def GetPageUrl(id,above=False):
     else:
         return GetArgUrl2('page','b'+str(id))
 
+def GetTagsUrl(tagstring):
+    return GetArgUrl2('tags',tagstring)
+
 def GetLimitUrl(limit):
     return GetArgUrl2('limit',limit)
+
+def GetOnlyUrl(onlystring):
+    return GetArgUrl2('only',onlystring)
 
 def GetPageNumUrl(pagenum):
     return GetArgUrl2('page',pagenum)
@@ -539,3 +596,9 @@ def GetTagSearches(string):
 def GetDanbooruUrl(opname,typename):
     """Build Danbooru URL on the fly"""
     return (booru_domain + '/' + typename + danbooru_ops[opname][0])
+
+def ModuleName():
+    return GetModulename()
+
+def Debug():
+    return IsDebug()
